@@ -40,6 +40,12 @@ import ManagerLogs from "./pages/manager/Logs.jsx";
 import ManagerSettings from "./pages/manager/Settings.jsx";
 import ManagerReports from "./pages/manager/Reports.jsx";
 
+import AnalystLayout from "./layouts/AnalystLayout.jsx";
+import DataManagement from "./pages/analyst/DataManagement.jsx";
+import Analysis from "./pages/analyst/Analysis.jsx";
+import ReportsAnalyst from "./pages/analyst/Report.jsx";
+import Posts from "./pages/analyst/Post.jsx";
+
 export default function App() {
   const location = useLocation();
   const hideGlobalNav = ["/dashboard", "/consultant", "/staff", "/manager"].some(p =>
@@ -111,6 +117,15 @@ export default function App() {
             <Route path="settings" element={<ManagerSettings />} />
             <Route path="reports" element={<ManagerReports />} />
           </Route>
+
+           {/* Analyst (Nhân viên phân tích dữ liệu) */}
+        <Route path="/analyst" element={<AnalystLayout />}>
+          <Route index element={<Analysis />} />
+          <Route path="data" element={<DataManagement />} />
+          <Route path="analysis" element={<Analysis />} />
+          <Route path="reports" element={<ReportsAnalyst />} />
+          <Route path="posts" element={<Posts />} />
+        </Route>
         </Routes>
       </main>
       {!hideGlobalNav && <Footer />}
