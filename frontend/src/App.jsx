@@ -8,10 +8,11 @@ import Login from "./pages/Login.jsx";
 import Register from "./pages/Register.jsx";
 import Search from "./pages/Search.jsx";
 import ManagePrograms from "./pages/admin/ManagePrograms.jsx";
+import EditContact from "./pages/dashboard/EditContact.jsx";
 
 import DashboardLayout from "./layouts/DashboardLayout.jsx";
 import Overview from "./pages/dashboard/Overview.jsx";
-import Trends from "./pages/dashboard/Trends.jsx";
+import Trends from "./pages/dashboard/ScoreDistribution.jsx";
 import ApplicationForm from "./pages/dashboard/ApplicationForm.jsx";
 import Notifications from "./pages/dashboard/Notifications.jsx";
 import SearchQuick from "./pages/dashboard/SearchQuick.jsx";
@@ -70,8 +71,9 @@ export default function App() {
             </ProtectedRoute>
           }>
             <Route index element={<Overview />} />
-            <Route path="trends" element={<Trends />} />
+            <Route path="score-distribution" element={<Trends />} />
             <Route path="application" element={<ApplicationForm />} />
+            <Route path="edit-contact" element={<EditContact />} />
             <Route path="notifications" element={<Notifications />} />
             <Route path="search" element={<SearchQuick />} />
             <Route path="payments" element={<Payments />} />

@@ -1,39 +1,87 @@
-import Input from "../../components/Input.jsx";
-import Select from "../../components/Select.jsx";
-import Button from "../../components/Button.jsx";
 import { useState } from "react";
 
 export default function ApplicationForm() {
-  const [form, setForm] = useState({
-    fullName: "", cccd: "", method: "Thi THPT", combo: "A00", major: "", school: "", note: ""
-  });
-  const set = (k,v)=>setForm(f=>({...f,[k]:v}));
+  const [showForm, setShowForm] = useState(false);
+
   return (
-    <div className="max-w-3xl">
-      <h1 className="text-2xl font-bold mb-2">Phiếu đăng ký xét tuyển</h1>
-      <p className="text-gray-600 text-sm mb-6">Điền thông tin cơ bản. Bạn có thể lưu nháp và bổ sung sau.</p>
-      <div className="card p-6 space-y-4">
-        <div className="grid md:grid-cols-2 gap-4">
-          <Input label="Họ và tên" value={form.fullName} onChange={e=>set('fullName', e.target.value)} />
-          <Input label="CCCD" value={form.cccd} onChange={e=>set('cccd', e.target.value)} />
-          <Input label="Trường" value={form.school} onChange={e=>set('school', e.target.value)} />
-          <Input label="Ngành" value={form.major} onChange={e=>set('major', e.target.value)} />
-          <Select label="Phương thức" value={form.method} onChange={e=>set('method', e.target.value)}>
-            {["Thi THPT","Học bạ","ĐGNL"].map(x=><option key={x} value={x}>{x}</option>)}
-          </Select>
-          <Select label="Tổ hợp" value={form.combo} onChange={e=>set('combo', e.target.value)}>
-            {["A00","A01","B00","C00","D01"].map(x=><option key={x} value={x}>{x}</option>)}
-          </Select>
-        </div>
-        <label className="block">
-          <span className="label">Ghi chú</span>
-          <textarea className="input" rows="4" value={form.note} onChange={e=>set('note', e.target.value)} />
-        </label>
-        <div className="flex gap-3 justify-end">
-          <button className="px-4 py-2 rounded-full bg-gray-100">Lưu nháp</button>
-          <Button>Nộp hồ sơ</Button>
-        </div>
-      </div>
+    <div className="space-y-6">
+      <h1 className="text-2xl font-bold mb-4">Mẫu phiếu đăng ký xét tuyển</h1>
+      {!showForm ? (
+        <>
+          <div className="card p-5">
+            <iframe
+              src="/phieu-dang-ky-du-thi-tot-nghiep-THPT.pdf"
+              title="Mẫu phiếu đăng ký"
+              className="w-full min-h-[600px] border rounded"
+            />
+          </div>
+          <div className="flex justify-end gap-3">
+            <button className="btn-primary" onClick={() => setShowForm(true)}>
+              Đăng ký hồ sơ xét tuyển
+            </button>
+          </div>
+        </>
+      ) : (
+        <FormDangKy />
+      )}
     </div>
+  );
+}
+
+// Form đăng ký giống mẫu PDF (ví dụ, bạn cần bổ sung đủ trường cho giống mẫu PDF)
+function FormDangKy() {
+  const [form, setForm] = useState({
+    hoTen: "",
+    ngaySinh: "",
+    gioiTinh: "",
+    danToc: "",
+    soCMND: "",
+    email: "",
+    dienThoai: "",
+    // ... các trường khác theo mẫu PDF
+  });
+  const [isDraft, setIsDraft] = useState(false);
+
+  const handleChange = e => setForm({ ...form, [e.target.name]: e.target.value });
+
+  // Kiểm tra đã nhập đủ thông tin chưa
+  const isFilled = Object.values(form).every(v => v);
+
+  return (
+    <form className="card p-5 space-y-4">
+      <div className="grid md:grid-cols-2 gap-4">
+        <input name="hoTen" className="input" placeholder="Họ và tên" value={form.hoTen} onChange={handleChange} />
+        <input name="ngaySinh" className="input" placeholder="Ngày sinh" value={form.ngaySinh} onChange={handleChange} />
+        <input name="gioiTinh" className="input" placeholder="Giới tính" value={form.gioiTinh} onChange={handleChange} />
+        <input name="danToc" className="input" placeholder="Dân tộc" value={form.danToc} onChange={handleChange} />
+        <input name="soCMND" className="input" placeholder="Số CMND" value={form.soCMND} onChange={handleChange} />
+        <input name="email" className="input" placeholder="Email" value={form.email} onChange={handleChange} />
+        <input name="dienThoai" className="input" placeholder="Điện thoại" value={form.dienThoai} onChange={handleChange} />
+        {/* ... các trường khác */}
+      </div>
+      <div className="flex gap-3 justify-end mt-4">
+        <button
+          type="button"
+          className="btn-outline"
+          onClick={() => setIsDraft(true)}
+        >
+          Lưu nháp
+        </button>
+        <button
+          type="submit"
+          className={`btn-primary ${!isFilled ? "opacity-50 cursor-not-allowed" : ""}`}
+          disabled={!isFilled}
+        >
+          Nộp hồ sơ
+        </button>
+        <button
+          type="button"
+          className="btn-outline"
+          onClick={() => window.location.reload()}
+        >
+          Hủy
+        </button>
+      </div>
+    </form>
   );
 }
