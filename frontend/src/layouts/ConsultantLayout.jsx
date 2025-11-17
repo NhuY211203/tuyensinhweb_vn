@@ -1,18 +1,25 @@
-import Topbar from "../components/Topbar.jsx";
+import { useState } from "react";
 import { Outlet } from "react-router-dom";
 import SidebarConsultant from "../components/SidebarConsultant.jsx";
+import Topbar from "../components/Topbar.jsx";
 
 export default function ConsultantLayout() {
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="flex">
-        <SidebarConsultant />
-        <div className="flex-1 flex flex-col">
-          <Topbar />
-          <div className="p-6 max-w-6xl">
+    <div className="min-h-screen bg-slate-50 text-slate-800 flex">
+      {/* Sidebar cho Consultant */}
+      <SidebarConsultant />
+      
+      {/* Main content */}
+      <div className="flex-1 flex flex-col">
+        {/* Topbar */}
+        <Topbar />
+        
+        {/* Nội dung chính */}
+        <main className="flex-1 p-6">
+          <div className="max-w-5xl mx-auto">
             <Outlet />
           </div>
-        </div>
+        </main>
       </div>
     </div>
   );
