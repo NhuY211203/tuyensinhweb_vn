@@ -27,8 +27,6 @@ import Payments from "./pages/dashboard/Payments.jsx";
 import Appointments from "./pages/dashboard/Appointments.jsx";
 import Certificates from "./pages/dashboard/Certificates.jsx";
 import AdmissionInfo from "./pages/dashboard/AdmissionInfo.jsx";
-import RewardPoints from "./pages/dashboard/RewardPoints.jsx";
-import CareerTest from "./pages/dashboard/CareerTest.jsx";
 
 import ConsultantLayout from "./layouts/ConsultantLayout.jsx";
 import ConsultantOverview from "./pages/consultant/Overview.jsx";
@@ -43,8 +41,6 @@ import StaffAssign from "./pages/staff/Assign.jsx";
 import StaffNotifications from "./pages/staff/Notifications.jsx";
 import StaffExperts from "./pages/staff/Consultants.jsx";
 import StaffScheduleChanges from "./pages/staff/ScheduleChangeRequests.jsx";
-import StaffConsultationSchedules from "./pages/staff/ConsultationSchedules.jsx";
-import StaffStatistics from "./pages/staff/Statistics.jsx";
 
 import ManagerLayout from "./layouts/ManagerLayout.jsx";
 import ManagerOverview from "./pages/manager/Overview.jsx";
@@ -60,7 +56,6 @@ import UniversityManagement from "./pages/analyst/UniversityManagement.jsx";
 import MajorManagement from "./pages/analyst/MajorManagement.jsx";
 import AdmissionMajorManagement from "./pages/analyst/AdmissionMajorManagement.jsx";
 import AdmissionMethodManagement from "./pages/analyst/AdmissionMethodManagement.jsx";
-import Analysis from "./pages/analyst/Analysis.jsx";
 
 export default function App() {
   const location = useLocation();
@@ -102,8 +97,6 @@ export default function App() {
             <Route path="appointments" element={<Appointments />} />
             <Route path="certificates" element={<Certificates />} />
             <Route path="admission-info" element={<AdmissionInfo />} />
-            <Route path="reward-points" element={<RewardPoints />} />
-            <Route path="career-test" element={<CareerTest />} />
             <Route path="news" element={<News />} />
           </Route>
 
@@ -129,8 +122,6 @@ export default function App() {
             <Route index element={<StaffRequests />} />
             <Route path="assign" element={<StaffAssign />} />
             <Route path="schedule-changes" element={<StaffScheduleChanges />} />
-            <Route path="consultation-schedules" element={<StaffConsultationSchedules />} />
-            <Route path="statistics" element={<StaffStatistics />} />
             <Route path="notifications" element={<StaffNotifications />} />
             <Route path="consultants" element={<StaffExperts />} />
             <Route path="experts" element={<StaffExperts />} />
@@ -162,7 +153,6 @@ export default function App() {
           <Route path="majors" element={<MajorManagement />} />
           <Route path="admission-majors" element={<AdmissionMajorManagement />} />
           <Route path="admission-methods" element={<AdmissionMethodManagement />} />
-          <Route path="analysis" element={<Analysis />} />
         </Route>
         </Routes>
       </main>
