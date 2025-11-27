@@ -20,27 +20,51 @@ export default function Login() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
     setError("");
 
+    const emailPattern =
+      /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
+    if (!emailPattern.test(formData.email.trim())) {
+      setError("Email không hợp lệ. Vui lòng kiểm tra lại.");
+      return;
+    }
+
+    setLoading(true);
+
     try {
-      const res = await fetch("/api/login", {
+      const requestOptions = {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify(formData)
-      }).catch(() => 
-        fetch("http://127.0.0.1:8000/api/login", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify(formData)
-        })
-      );
+      };
 
-      const data = await res.json();
+      let res;
+      try {
+        res = await fetch("/api/login", requestOptions);
+      } catch {
+        res = await fetch("http://127.0.0.1:8000/api/login", requestOptions);
+      }
+
+      let data = null;
+      try {
+        data = await res.json();
+      } catch {
+        // Nếu không parse được JSON, để data là null
+      }
+
+      if (!res.ok || !data?.success) {
+        const invalidCredentialsStatuses = [400, 401, 404, 422];
+        const invalidCredentials = invalidCredentialsStatuses.includes(res?.status);
+        const message =
+          data?.message ||
+          (invalidCredentials
+            ? "Email hoặc mật khẩu không đúng"
+            : "Không thể đăng nhập. Vui lòng thử lại.");
+        setError(message);
+        return;
+      }
 
       if (data.success) {
         // Lưu thông tin user vào localStorage

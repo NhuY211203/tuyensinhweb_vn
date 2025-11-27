@@ -18,6 +18,8 @@ use App\Http\Controllers\NganhTruongController;
 use App\Http\Controllers\PhuongThucXetTuyenController;
 use App\Http\Controllers\TinTuyenSinhController;
 use App\Http\Controllers\CareerTestController;
+use App\Http\Controllers\KyThiDGNLController;
+use App\Http\Controllers\AdmissionInfoController;
 
 Route::get('/vaitro', [VaiTroController::class, 'index']);
 Route::get('/stats', [StatsController::class, 'index']);
@@ -42,6 +44,22 @@ Route::prefix('career-test')->group(function () {
     Route::get('/questions', [CareerTestController::class, 'questions']);
     Route::post('/submit', [CareerTestController::class, 'submit']);
 });
+
+// Kỳ thi ĐGNL (bộ bảng kythi_dgnl_*)
+Route::prefix('kythi-dgnl')->group(function () {
+    Route::get('/exams', [KyThiDGNLController::class, 'exams']);
+    Route::get('/attempts', [KyThiDGNLController::class, 'attempts']);
+    Route::post('/attempts', [KyThiDGNLController::class, 'storeAttempt']);
+    Route::get('/attempt-details', [KyThiDGNLController::class, 'attemptDetails']);
+    Route::get('/questions', [KyThiDGNLController::class, 'questions']);
+    Route::get('/options', [KyThiDGNLController::class, 'options']);
+    Route::get('/sections', [KyThiDGNLController::class, 'sections']);
+    Route::get('/topics', [KyThiDGNLController::class, 'topics']);
+});
+
+// Thông tin tuyển sinh & quy chế
+Route::get('/admission-info', [AdmissionInfoController::class, 'index']);
+Route::get('/admission-info/quyche', [AdmissionInfoController::class, 'quyChe']);
 
 // Authentication routes
 Route::post('/register', [AuthController::class, 'register']);

@@ -29,6 +29,9 @@ import Certificates from "./pages/dashboard/Certificates.jsx";
 import AdmissionInfo from "./pages/dashboard/AdmissionInfo.jsx";
 import RewardPoints from "./pages/dashboard/RewardPoints.jsx";
 import CareerTest from "./pages/dashboard/CareerTest.jsx";
+import DGNLPractice from "./pages/dashboard/DGNLPractice.jsx";
+import DGNLExamDetail from "./pages/dashboard/DGNLExamDetail.jsx";
+import AdvisingFAQ from "./pages/dashboard/AdvisingFAQ.jsx";
 
 import ConsultantLayout from "./layouts/ConsultantLayout.jsx";
 import ConsultantOverview from "./pages/consultant/Overview.jsx";
@@ -104,6 +107,9 @@ export default function App() {
             <Route path="admission-info" element={<AdmissionInfo />} />
             <Route path="reward-points" element={<RewardPoints />} />
             <Route path="career-test" element={<CareerTest />} />
+            <Route path="dgnl-practice" element={<DGNLPractice />} />
+            <Route path="dgnl-practice/:id" element={<DGNLExamDetail />} />
+            <Route path="advising-chatbot" element={<AdvisingFAQ />} />
             <Route path="news" element={<News />} />
           </Route>
 

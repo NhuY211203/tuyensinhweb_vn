@@ -154,6 +154,11 @@ export default function CollapsibleSidebar({ collapsed, setCollapsed, mobileOpen
           Định hướng ngành học
         </MenuItem>
 
+        {/* Thi thử ĐGNL */}
+        <MenuItem to="/dashboard/dgnl-practice" icon="📝">
+          Thi thử đánh giá năng lực
+        </MenuItem>
+
         {/* TRA CỨU */}
         <CollapsibleSection
           title="TRA CỨU"
@@ -199,7 +204,7 @@ export default function CollapsibleSidebar({ collapsed, setCollapsed, mobileOpen
           onToggle={() => setOpenPredictionAdvising(!openPredictionAdvising)}
         >
           <SubMenuItem to="/dashboard/predictions">Dự đoán & Đánh giá cơ hội</SubMenuItem>
-          <SubMenuItem to="/dashboard/advising-chatbot">Chatbot tư vấn AI</SubMenuItem>
+          <SubMenuItem to="/dashboard/advising-chatbot">Các câu hỏi thường gặp</SubMenuItem>
           <SubMenuItem to="/dashboard/appointments">Đặt lịch tư vấn với chuyên gia</SubMenuItem>
         </CollapsibleSection>
 
