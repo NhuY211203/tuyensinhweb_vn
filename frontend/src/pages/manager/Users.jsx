@@ -1,4 +1,5 @@
 import React, { useMemo, useState, useEffect } from "react";
+import api from "../../services/api";
 
 function RoleModal({ open, onClose, user, onSave, saving }) {
   const [role, setRole] = useState(user?.vai_tro?.tenvaitro || "Thành viên");
@@ -45,6 +46,288 @@ function RoleModal({ open, onClose, user, onSave, saving }) {
   );
 }
 
+function UserFormModal({ open, onClose, user, onSave, saving, roles, majorGroups }) {
+  const [formData, setFormData] = useState({
+    email: '',
+    hoten: '',
+    matkhau: '',
+    sodienthoai: '',
+    diachi: '',
+    ngaysinh: '',
+    gioitinh: '',
+    idvaitro: '',
+    idnhomnganh: '',
+    trangthai: 1,
+  });
+  const [errors, setErrors] = useState({});
+
+  useEffect(() => {
+    if (user) {
+      // Edit mode
+      setFormData({
+        email: user.email || '',
+        hoten: user.hoten || '',
+        matkhau: '',
+        sodienthoai: user.sodienthoai || '',
+        diachi: user.diachi || '',
+        ngaysinh: user.ngaysinh || '',
+        gioitinh: user.gioitinh || '',
+        idvaitro: user.idvaitro || '',
+        idnhomnganh: user.idnhomnganh || '',
+        trangthai: user.trangthai ?? 1,
+      });
+    } else {
+      // Create mode
+      setFormData({
+        email: '',
+        hoten: '',
+        matkhau: '',
+        sodienthoai: '',
+        diachi: '',
+        ngaysinh: '',
+        gioitinh: '',
+        idvaitro: '',
+        idnhomnganh: '',
+        trangthai: 1,
+      });
+    }
+    setErrors({});
+  }, [user, open]);
+
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({
+      ...prev,
+      [name]: value
+    }));
+    // Clear error when user types
+    if (errors[name]) {
+      setErrors(prev => {
+        const newErrors = { ...prev };
+        delete newErrors[name];
+        return newErrors;
+      });
+    }
+  };
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onSave(formData);
+  };
+
+  if (!open) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30">
+      <div className="bg-white rounded-2xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-y-auto p-6">
+        <h3 className="text-xl font-semibold mb-4">
+          {user ? 'Sửa thông tin người dùng' : 'Thêm người dùng mới'}
+        </h3>
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Họ và tên <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="text"
+                name="hoten"
+                value={formData.hoten}
+                onChange={handleChange}
+                className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 ${
+                  errors.hoten ? 'border-red-500' : 'border-gray-200'
+                }`}
+                required
+                disabled={saving}
+              />
+              {errors.hoten && <p className="text-red-500 text-xs mt-1">{errors.hoten}</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Email <span className="text-red-500">*</span>
+              </label>
+              <input
+                type="email"
+                name="email"
+                value={formData.email}
+                onChange={handleChange}
+                className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 ${
+                  errors.email ? 'border-red-500' : 'border-gray-200'
+                }`}
+                required
+                disabled={saving}
+              />
+              {errors.email && <p className="text-red-500 text-xs mt-1">{errors.email}</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Mật khẩu {!user && <span className="text-red-500">*</span>}
+              </label>
+              <input
+                type="password"
+                name="matkhau"
+                value={formData.matkhau}
+                onChange={handleChange}
+                className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 ${
+                  errors.matkhau ? 'border-red-500' : 'border-gray-200'
+                }`}
+                required={!user}
+                disabled={saving}
+                placeholder={user ? "Để trống nếu không đổi" : ""}
+              />
+              {errors.matkhau && <p className="text-red-500 text-xs mt-1">{errors.matkhau}</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Số điện thoại
+              </label>
+              <input
+                type="tel"
+                name="sodienthoai"
+                value={formData.sodienthoai}
+                onChange={handleChange}
+                className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 ${
+                  errors.sodienthoai ? 'border-red-500' : 'border-gray-200'
+                }`}
+                disabled={saving}
+              />
+              {errors.sodienthoai && <p className="text-red-500 text-xs mt-1">{errors.sodienthoai}</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Ngày sinh
+              </label>
+              <input
+                type="date"
+                name="ngaysinh"
+                value={formData.ngaysinh}
+                onChange={handleChange}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500"
+                disabled={saving}
+              />
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Giới tính
+              </label>
+              <select
+                name="gioitinh"
+                value={formData.gioitinh}
+                onChange={handleChange}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500"
+                disabled={saving}
+              >
+                <option value="">Chọn giới tính</option>
+                <option value="Nam">Nam</option>
+                <option value="Nữ">Nữ</option>
+                <option value="Khác">Khác</option>
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Vai trò <span className="text-red-500">*</span>
+              </label>
+              <select
+                name="idvaitro"
+                value={formData.idvaitro}
+                onChange={handleChange}
+                className={`w-full border rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 ${
+                  errors.idvaitro ? 'border-red-500' : 'border-gray-200'
+                }`}
+                required
+                disabled={saving}
+              >
+                <option value="">Chọn vai trò</option>
+                {roles.map(role => (
+                  <option key={role.idvaitro} value={role.idvaitro}>
+                    {role.tenvaitro}
+                  </option>
+                ))}
+              </select>
+              {errors.idvaitro && <p className="text-red-500 text-xs mt-1">{errors.idvaitro}</p>}
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Nhóm ngành
+              </label>
+              <select
+                name="idnhomnganh"
+                value={formData.idnhomnganh}
+                onChange={handleChange}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500"
+                disabled={saving}
+              >
+                <option value="">Chọn nhóm ngành (tùy chọn)</option>
+                {majorGroups.map(group => (
+                  <option key={group.idnhomnganh} value={group.idnhomnganh}>
+                    {group.tennhom || group.ten_nhom || group.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Trạng thái
+              </label>
+              <select
+                name="trangthai"
+                value={formData.trangthai}
+                onChange={handleChange}
+                className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500"
+                disabled={saving}
+              >
+                <option value={1}>Hoạt động</option>
+                <option value={0}>Khóa</option>
+              </select>
+            </div>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">
+              Địa chỉ
+            </label>
+            <input
+              type="text"
+              name="diachi"
+              value={formData.diachi}
+              onChange={handleChange}
+              className="w-full border border-gray-200 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500"
+              disabled={saving}
+            />
+          </div>
+
+          <div className="mt-6 flex justify-end space-x-3">
+            <button
+              type="button"
+              onClick={onClose}
+              className="px-4 py-2 rounded-lg bg-gray-100 hover:bg-gray-200"
+              disabled={saving}
+            >
+              Hủy
+            </button>
+            <button
+              type="submit"
+              className="px-4 py-2 rounded-lg bg-teal-600 text-white hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed"
+              disabled={saving}
+            >
+              {saving ? 'Đang lưu...' : (user ? 'Cập nhật' : 'Tạo mới')}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
 export default function ManagerUsers() {
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("Tất cả");
@@ -55,6 +338,46 @@ export default function ManagerUsers() {
   const [editing, setEditing] = useState(null);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState(null);
+  const [showUserForm, setShowUserForm] = useState(false);
+  const [editingUser, setEditingUser] = useState(null);
+  const [roles, setRoles] = useState([]);
+  const [majorGroups, setMajorGroups] = useState([]);
+
+  // Load roles and major groups from API
+  useEffect(() => {
+    async function loadRoles() {
+      try {
+        const response = await fetch('/api/vaitro').catch(() => 
+          fetch('http://127.0.0.1:8000/api/vaitro')
+        );
+        if (response.ok) {
+          const rolesData = await response.json();
+          setRoles(Array.isArray(rolesData) ? rolesData : []);
+        }
+      } catch (err) {
+        console.error('Error loading roles:', err);
+      }
+    }
+
+    async function loadMajorGroups() {
+      try {
+        const response = await fetch('/api/nhomnganh').catch(() => 
+          fetch('http://127.0.0.1:8000/api/nhomnganh')
+        );
+        if (response.ok) {
+          const groupsData = await response.json();
+          // API có thể trả về array hoặc object với data property
+          const groups = Array.isArray(groupsData) ? groupsData : (groupsData.data || []);
+          setMajorGroups(groups);
+        }
+      } catch (err) {
+        console.error('Error loading major groups:', err);
+      }
+    }
+
+    loadRoles();
+    loadMajorGroups();
+  }, []);
 
   // Load users from API
   useEffect(() => {
@@ -242,6 +565,99 @@ export default function ManagerUsers() {
     }
   };
 
+  const handleSaveUser = async (formData) => {
+    try {
+      setSaving(true);
+      setMessage(null);
+
+      const userData = { ...formData };
+      
+      // Remove empty password if editing
+      if (editingUser && !userData.matkhau) {
+        delete userData.matkhau;
+      }
+      
+      // Convert empty string to null for optional fields
+      if (userData.idnhomnganh === '') {
+        userData.idnhomnganh = null;
+      } else if (userData.idnhomnganh) {
+        userData.idnhomnganh = parseInt(userData.idnhomnganh);
+      }
+      
+      if (userData.sodienthoai === '') {
+        userData.sodienthoai = null;
+      }
+      
+      if (userData.diachi === '') {
+        userData.diachi = null;
+      }
+      
+      if (userData.ngaysinh === '') {
+        userData.ngaysinh = null;
+      }
+      
+      if (userData.gioitinh === '') {
+        userData.gioitinh = null;
+      }
+      
+      // Convert idvaitro to integer
+      if (userData.idvaitro) {
+        userData.idvaitro = parseInt(userData.idvaitro);
+      }
+      
+      // Convert trangthai to integer
+      userData.trangthai = parseInt(userData.trangthai);
+
+      let response;
+      if (editingUser) {
+        // Update user
+        userData.id = editingUser.idnguoidung;
+        try {
+          response = await api.put('/users', userData);
+        } catch (error) {
+          // Fallback to direct fetch
+          response = await fetch('http://127.0.0.1:8000/api/users', {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(userData)
+          }).then(r => r.json());
+        }
+      } else {
+        // Create user
+        try {
+          response = await api.post('/users', userData);
+        } catch (error) {
+          // Fallback to direct fetch
+          response = await fetch('http://127.0.0.1:8000/api/users', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(userData)
+          }).then(r => r.json());
+        }
+      }
+
+      if (response.success) {
+        setMessage({ type: 'success', text: editingUser ? 'Cập nhật người dùng thành công!' : 'Tạo người dùng thành công!' });
+        setShowUserForm(false);
+        setEditingUser(null);
+        // Reload users
+        window.location.reload();
+      } else {
+        // Handle validation errors
+        if (response.errors) {
+          setMessage({ type: 'error', text: 'Vui lòng kiểm tra lại thông tin đã nhập' });
+        } else {
+          setMessage({ type: 'error', text: response.message || 'Có lỗi xảy ra' });
+        }
+      }
+    } catch (error) {
+      console.error('Error saving user:', error);
+      setMessage({ type: 'error', text: error.message || 'Có lỗi xảy ra khi lưu người dùng' });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   const toggle = async (id) => {
     try {
       const user = data.find(u => u.idnguoidung === id);
@@ -292,7 +708,8 @@ export default function ManagerUsers() {
         // Thử parse response để lấy thông báo lỗi chi tiết
         try {
           const errorResult = await response.json();
-          setMessage({ type: 'error', text: errorResult.message || 'Có lỗi xảy ra khi cập nhật trạng thái' });
+          const errorMessage = errorResult.message || 'Có lỗi xảy ra khi cập nhật trạng thái';
+          setMessage({ type: 'error', text: errorMessage });
         } catch {
           setMessage({ type: 'error', text: 'Không thể kết nối đến server' });
         }
@@ -305,7 +722,18 @@ export default function ManagerUsers() {
 
   return (
     <div>
-      <h1 className="text-2xl font-bold mb-4">Người dùng & quyền</h1>
+      <div className="flex justify-between items-center mb-4">
+        <h1 className="text-2xl font-bold">Người dùng & quyền</h1>
+        <button
+          onClick={() => {
+            setEditingUser(null);
+            setShowUserForm(true);
+          }}
+          className="px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700"
+        >
+          + Thêm người dùng
+        </button>
+      </div>
 
       <div className="mb-3 flex flex-wrap items-center gap-3">
         <input
@@ -374,12 +802,31 @@ export default function ManagerUsers() {
                     </span>
                   </td>
                   <td className="p-3 text-center space-x-2">
-                    <button className="px-3 py-1 rounded-full bg-teal-50 text-teal-700 hover:bg-teal-100"
-                            onClick={()=>setEditing(u)}>Sửa quyền</button>
-                    <button className="px-3 py-1 rounded-full bg-gray-100 hover:bg-gray-200"
-                            onClick={()=>toggle(u.idnguoidung)}>
-                      {u.trangthai === 1 ? 'Khóa' : 'Mở'}
+                    <button
+                      onClick={() => {
+                        setEditingUser(u);
+                        setShowUserForm(true);
+                      }}
+                      className="px-3 py-1 rounded-full bg-blue-100 hover:bg-blue-200 text-blue-700 mr-2"
+                    >
+                      Sửa
                     </button>
+                    {u.trangthai === 1 ? (
+                      <button 
+                        className="px-3 py-1 rounded-full bg-gray-100 hover:bg-gray-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        onClick={()=>toggle(u.idnguoidung)}
+                        title="Chỉ có thể khóa khi không có lịch tư vấn trong tương lai"
+                      >
+                        Khóa
+                      </button>
+                    ) : (
+                      <button 
+                        className="px-3 py-1 rounded-full bg-gray-100 hover:bg-gray-200"
+                        onClick={()=>toggle(u.idnguoidung)}
+                      >
+                        Mở
+                      </button>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -397,6 +844,19 @@ export default function ManagerUsers() {
         onClose={()=>setEditing(null)} 
         onSave={saveRole} 
         saving={saving}
+      />
+
+      <UserFormModal
+        open={showUserForm}
+        user={editingUser}
+        onClose={() => {
+          setShowUserForm(false);
+          setEditingUser(null);
+        }}
+        onSave={handleSaveUser}
+        saving={saving}
+        roles={roles}
+        majorGroups={majorGroups}
       />
       
       {/* Thông báo */}

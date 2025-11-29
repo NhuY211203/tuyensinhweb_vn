@@ -139,11 +139,6 @@ export default function CollapsibleSidebar({ collapsed, setCollapsed, mobileOpen
 
       {/* Menu */}
       <nav className="py-2">
-        {/* Tổng quan */}
-        <MenuItem to="/dashboard" icon="🏠">
-          Tổng quan
-        </MenuItem>
-
         {/* Tin tức */}
         <MenuItem to="/dashboard/news" icon="📰">
           Tin tức
@@ -167,7 +162,6 @@ export default function CollapsibleSidebar({ collapsed, setCollapsed, mobileOpen
           onToggle={() => setOpenSearch(!openSearch)}
         >
           <SubMenuItem to="/dashboard/search-trends">Tra cứu xu hướng ngành học</SubMenuItem>
-          <SubMenuItem to="/dashboard/admission-proposals">Tra cứu đề án tuyển sinh</SubMenuItem>
           <SubMenuItem to="/dashboard/historic-scores">Tra cứu điểm chuẩn nhiều năm</SubMenuItem>
           <SubMenuItem to="/dashboard/admission-info">Tra cứu thông tin tuyển sinh</SubMenuItem>
         </CollapsibleSection>
@@ -180,8 +174,6 @@ export default function CollapsibleSidebar({ collapsed, setCollapsed, mobileOpen
           onToggle={() => setOpenProfile(!openProfile)}
         >
           <SubMenuItem to="/dashboard/profile">Hồ sơ cá nhân </SubMenuItem>
-          <SubMenuItem to="/dashboard/profile/edit">Cập nhật hồ sơ</SubMenuItem>
-          <SubMenuItem to="/dashboard/profile/status">Xem trạng thái hồ sơ</SubMenuItem>
         </CollapsibleSection>
 
         {/* ĐĂNG KÝ & THANH TOÁN */}

@@ -31,6 +31,13 @@ export default function Appointments() {
   // Drawer xem lịch tư vấn viên
   const [showScheduleDrawer, setShowScheduleDrawer] = useState(false);
   const [activeScheduleConsultant, setActiveScheduleConsultant] = useState(null);
+  
+  // Modal xem chi tiết đánh giá
+  const [showRatingDetailModal, setShowRatingDetailModal] = useState(false);
+  const [selectedConsultantForRating, setSelectedConsultantForRating] = useState(null);
+  
+  // State để quản lý việc hiển thị full bio cho từng consultant
+  const [expandedBios, setExpandedBios] = useState({});
 
   // States cho API
   const [categories, setCategories] = useState([]);
@@ -51,6 +58,19 @@ export default function Appointments() {
   const fileInputRef = useRef(null);
   // Thông báo chat mới theo lịch (appointmentId -> boolean)
   const [newChatMap, setNewChatMap] = useState({});
+
+  // Rating states
+  const [ratingMap, setRatingMap] = useState({}); // { [scheduleId]: { iddanhgia, diemdanhgia, nhanxet, an_danh } }
+  const [showRatingModal, setShowRatingModal] = useState(false);
+  const [ratingMode, setRatingMode] = useState('create'); // 'create' | 'edit' | 'view'
+  const [ratingSchedule, setRatingSchedule] = useState(null); // appt item
+  const [ratingForm, setRatingForm] = useState({ diemdanhgia: 5, nhanxet: '', an_danh: 0, iddanhgia: null });
+  
+  // Consultation notes states
+  const [showNotesModal, setShowNotesModal] = useState(false);
+  const [notesData, setNotesData] = useState(null);
+  const [notesLoading, setNotesLoading] = useState(false);
+  const [selectedAppointmentForNotes, setSelectedAppointmentForNotes] = useState(null);
   
   // States cho tìm kiếm và lọc
   const [searchTerm, setSearchTerm] = useState('');
@@ -312,14 +332,15 @@ export default function Appointments() {
     loadCategories();
   }, []);
 
-  // Load các lịch đã đặt (trạng thái = 2) khi chuyển sang chế độ "Đã có lịch"
+  // Load danh sách lịch theo chế độ xem
   useEffect(() => {
-    if (viewMode === 'existing') {
+    if (viewMode === 'existing' || viewMode === 'completed') {
       const loadMyAppointments = async () => {
         try {
           setExistingLoading(true);
           setError(null);
-          const res = await apiService.getMyAppointments();
+          const params = viewMode === 'completed' ? { status: 'completed' } : {};
+          const res = await apiService.getMyAppointments(params);
           if (res.success) {
             setMyAppointments(Array.isArray(res.data) ? res.data : []);
           } else {
@@ -335,6 +356,32 @@ export default function Appointments() {
       loadMyAppointments();
     }
   }, [viewMode]);
+
+  // Load rating for each completed appointment
+  useEffect(() => {
+    const loadRatings = async () => {
+      if (viewMode !== 'completed' || myAppointments.length === 0) return;
+      try {
+        const entries = await Promise.all(
+          myAppointments.map(async (appt) => {
+            try {
+              const res = await apiService.getScheduleRating(appt.id);
+              if (res.success && res.data) {
+                return [appt.id, res.data];
+              }
+            } catch {}
+            return [appt.id, null];
+          })
+        );
+        const map = {};
+        entries.forEach(([id, r]) => { if (r) map[id] = r; });
+        setRatingMap(map);
+      } catch (e) {
+        console.error('Không thể tải đánh giá:', e);
+      }
+    };
+    loadRatings();
+  }, [viewMode, myAppointments]);
 
   // Helpers: chat storage by appointment id using localStorage
   const loadChat = (appointmentId) => {
@@ -613,11 +660,15 @@ export default function Appointments() {
           const response = await apiService.getConsultantsByMajorGroup(selectedCategory.id);
           
           if (response.success) {
-            // Load available slots cho từng tư vấn viên
+            // Load available slots và ratings cho từng tư vấn viên
             const consultantsWithSlots = await Promise.all(
               response.data.map(async (consultant) => {
                 try {
-                  const slotsResponse = await apiService.getAvailableSlots(consultant.id, { duyetlich: 2 });
+                  // Chỉ lấy lịch đã duyệt, còn trống và sau NGÀY hiện tại
+                  const tomorrow = new Date();
+                  tomorrow.setDate(tomorrow.getDate() + 1);
+                  const tomorrowStr = tomorrow.toISOString().split('T')[0];
+                  const slotsResponse = await apiService.getAvailableSlots(consultant.id, { duyetlich: 2, status: 1, start_date: tomorrowStr });
                   let availableSlots = [];
                   
                   if (slotsResponse.success && slotsResponse.data) {
@@ -639,14 +690,32 @@ export default function Appointments() {
                     });
                   }
                   
+                  // Load ratings cho tư vấn viên
+                  let ratingData = { average_rating: 0, total_ratings: 0, reviews: [] };
+                  try {
+                    const ratingResponse = await apiService.getConsultantRating(consultant.id);
+                    if (ratingResponse.success && ratingResponse.data) {
+                      ratingData = ratingResponse.data;
+                    }
+                  } catch (ratingError) {
+                    console.error(`Error loading ratings for consultant ${consultant.id}:`, ratingError);
+                  }
+                  
+                  const fallbackAvatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(consultant.hoten || consultant.name || 'TV')}&background=random`;
+                  const avatarUrl = (consultant.avatar && typeof consultant.avatar === 'string' && consultant.avatar.trim()) ? consultant.avatar : fallbackAvatar;
+                  
                   return {
                     id: consultant.id,
                     name: consultant.hoten,
-                    avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(consultant.hoten)}&background=random`,
+                    avatar: avatarUrl,
+                    bio: consultant.bio || '',
                     workplace: "Trường Đại học",
                     skills: ["Tư vấn", "Định hướng", "Học bổng"],
                     methods: ["Google Meet", "Zoom", "Trực tiếp"],
-                    availableSlots: availableSlots
+                    availableSlots: availableSlots,
+                    averageRating: ratingData.average_rating || 0,
+                    totalRatings: ratingData.total_ratings || 0,
+                    reviews: ratingData.reviews || []
                   };
                 } catch (slotError) {
                   console.error(`Error loading slots for consultant ${consultant.id}:`, slotError);
@@ -657,7 +726,10 @@ export default function Appointments() {
                     workplace: "Trường Đại học",
                     skills: ["Tư vấn", "Định hướng", "Học bổng"],
                     methods: ["Google Meet", "Zoom", "Trực tiếp"],
-                    availableSlots: []
+                    availableSlots: [],
+                    averageRating: 0,
+                    totalRatings: 0,
+                    reviews: []
                   };
                 }
               })
@@ -709,6 +781,67 @@ export default function Appointments() {
     setSelectedCategory(null);
   };
 
+  // Rating helpers
+  const openCreateRating = (appt) => {
+    setRatingMode('create');
+    setRatingSchedule(appt);
+    setRatingForm({ diemdanhgia: 5, nhanxet: '', an_danh: 0, iddanhgia: null });
+    setShowRatingModal(true);
+  };
+
+  const openViewRating = (appt, r) => {
+    setRatingMode('view');
+    setRatingSchedule(appt);
+    setRatingForm({ diemdanhgia: r.diemdanhgia || 5, nhanxet: r.nhanxet || '', an_danh: r.an_danh || 0, iddanhgia: r.iddanhgia });
+    setShowRatingModal(true);
+  };
+
+  const openEditRating = (appt, r) => {
+    setRatingMode('edit');
+    setRatingSchedule(appt);
+    setRatingForm({ diemdanhgia: r.diemdanhgia || 5, nhanxet: r.nhanxet || '', an_danh: r.an_danh || 0, iddanhgia: r.iddanhgia });
+    setShowRatingModal(true);
+  };
+
+  const submitCreateRating = async () => {
+    try {
+      if (!ratingSchedule) return;
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      const userId = user.idnguoidung || user.id;
+      const payload = {
+        idlichtuvan: ratingSchedule.id,
+        idnguoidat: userId,
+        diemdanhgia: Number(ratingForm.diemdanhgia),
+        nhanxet: ratingForm.nhanxet,
+        an_danh: Number(ratingForm.an_danh) || 0,
+      };
+      const res = await apiService.createScheduleRating(payload);
+      if (res.success) {
+        setRatingMap(prev => ({ ...prev, [ratingSchedule.id]: res.data }));
+        setShowRatingModal(false);
+      }
+    } catch (e) {
+      alert('Không thể lưu đánh giá: ' + (e.message || 'Lỗi không xác định'));
+    }
+  };
+
+  const submitUpdateRating = async () => {
+    try {
+      if (!ratingForm.iddanhgia) return;
+      const res = await apiService.updateScheduleRating(ratingForm.iddanhgia, {
+        diemdanhgia: Number(ratingForm.diemdanhgia),
+        nhanxet: ratingForm.nhanxet,
+        an_danh: Number(ratingForm.an_danh) || 0,
+      });
+      if (res.success) {
+        setRatingMap(prev => ({ ...prev, [ratingSchedule.id]: res.data }));
+        setShowRatingModal(false);
+      }
+    } catch (e) {
+      alert('Không thể cập nhật đánh giá: ' + (e.message || 'Lỗi không xác định'));
+    }
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-white to-cyan-50">
       {/* Background Pattern */}
@@ -741,6 +874,12 @@ export default function Appointments() {
                 className={`px-4 py-2 text-sm font-semibold ${viewMode === 'existing' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-50'}`}
               >
                 Đã có lịch
+              </button>
+              <button
+                onClick={() => setViewMode('completed')}
+                className={`px-4 py-2 text-sm font-semibold border-l border-gray-200 ${viewMode === 'completed' ? 'bg-blue-600 text-white' : 'text-gray-700 hover:bg-gray-50'}`}
+              >
+                Đã tư vấn
               </button>
               <button
                 onClick={() => setViewMode('new')}
@@ -803,7 +942,7 @@ export default function Appointments() {
         </div>
 
         {viewMode === 'existing' ? (
-          /* Trang: Đã có lịch */
+          /* Trang: Đã có lịch (sắp/đang tới) */
           <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/20">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-2xl font-semibold text-gray-800">Lịch tư vấn của bạn</h2>
@@ -861,6 +1000,99 @@ export default function Appointments() {
                 >
                   Đặt lịch ngay
                 </button>
+              </div>
+            )}
+          </div>
+        ) : viewMode === 'completed' ? (
+          /* Trang: Đã tư vấn (đã hoàn thành) */
+          <div className="bg-white/80 backdrop-blur-sm rounded-2xl p-6 shadow-lg border border-white/20">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-2xl font-semibold text-gray-800">Lịch đã tư vấn của bạn</h2>
+            </div>
+            {existingLoading ? (
+              <div className="flex items-center justify-center py-12">
+                <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                <span className="ml-2 text-gray-600">Đang tải...</span>
+              </div>
+            ) : myAppointments.length > 0 ? (
+              <div className="space-y-3">
+                {myAppointments.map((item) => {
+                  const r = ratingMap[item.id];
+                  return (
+                  <div key={item.id} className="flex items-center justify-between p-4 border border-gray-200 rounded-xl">
+                    <div className="flex items-center gap-4">
+                      <div className="p-2 bg-green-50 rounded-lg">
+                        <CheckCircle className="w-5 h-5 text-green-600" />
+                      </div>
+                      <div>
+                        <div className="font-semibold text-gray-800">{item.groupName}</div>
+                        <div className="text-sm text-gray-600">{item.advisorName}</div>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-4">
+                      {/* Căn hàng theo độ rộng cố định để không bị lệch */}
+                      <div className="flex items-center gap-6 text-sm text-gray-700">
+                        <div className="flex items-center gap-2 w-28"><Clock className="w-4 h-4" />{new Date(item.date).toLocaleDateString('vi-VN')}</div>
+                        <div className="flex items-center gap-2 w-28"><Clock className="w-4 h-4" />{item.start} - {item.end}</div>
+                        <div className="flex items-center gap-2 w-36"><Video className="w-4 h-4" /><span className="truncate max-w-[120px]" title={item.method || 'Trực tiếp'}>{item.method || 'Trực tiếp'}</span></div>
+                        <div className="flex items-center gap-2 text-green-700 w-24"><CheckCircle className="w-4 h-4" />Đã tư vấn</div>
+                      </div>
+                      {/* Nút đánh giá và xem nhận xét */}
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={async () => {
+                            setSelectedAppointmentForNotes(item);
+                            setShowNotesModal(true);
+                            setNotesLoading(true);
+                            try {
+                              const res = await apiService.getConsultationNoteBySession(item.id);
+                              if (res.success) {
+                                setNotesData(res.data);
+                              } else {
+                                setNotesData(null);
+                              }
+                            } catch (e) {
+                              console.error('Error loading notes:', e);
+                              setNotesData(null);
+                            } finally {
+                              setNotesLoading(false);
+                            }
+                          }}
+                          className="px-3 py-2 rounded-lg bg-teal-600 text-white hover:bg-teal-700 text-sm"
+                        >
+                          Xem nhận xét
+                        </button>
+                        {!r ? (
+                          <button
+                            onClick={() => { setRatingMode('create'); setRatingSchedule(item); setRatingForm({ diemdanhgia: 5, nhanxet: '', an_danh: 0, iddanhgia: null }); setShowRatingModal(true); }}
+                            className="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm"
+                          >
+                            Đánh giá buổi tư vấn
+                          </button>
+                        ) : (
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => { setRatingMode('view'); setRatingSchedule(item); setRatingForm({ diemdanhgia: r.diemdanhgia, nhanxet: r.nhanxet, an_danh: r.an_danh, iddanhgia: r.iddanhgia }); setShowRatingModal(true); }}
+                              className="px-3 py-2 rounded-lg bg-gray-100 hover:bg-gray-200 text-sm"
+                            >
+                              Xem đánh giá
+                            </button>
+                            <button
+                              onClick={() => { setRatingMode('edit'); setRatingSchedule(item); setRatingForm({ diemdanhgia: r.diemdanhgia, nhanxet: r.nhanxet, an_danh: r.an_danh, iddanhgia: r.iddanhgia }); setShowRatingModal(true); }}
+                              className="px-3 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700 text-sm"
+                            >
+                              Sửa đánh giá
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );})}
+              </div>
+            ) : (
+              <div className="text-gray-600">
+                Chưa có buổi tư vấn nào đã hoàn thành.
               </div>
             )}
           </div>
@@ -1073,109 +1305,178 @@ export default function Appointments() {
               </div>
             ) : (
               <>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {consultants.map((consultant) => (
+            <div className="space-y-4">
+              {consultants.map((consultant) => {
+                const isBioExpanded = expandedBios[consultant.id] || false;
+                const bioDisplay = consultant.bio && consultant.bio.length > 120 
+                  ? (isBioExpanded ? consultant.bio : `${consultant.bio.slice(0, 120)}...`)
+                  : consultant.bio;
+                
+                // Màu sắc cho các tag dịch vụ
+                const skillColors = [
+                  { bg: 'bg-blue-50', text: 'text-blue-700', border: 'border-blue-200' },
+                  { bg: 'bg-purple-50', text: 'text-purple-700', border: 'border-purple-200' },
+                  { bg: 'bg-emerald-50', text: 'text-emerald-700', border: 'border-emerald-200' },
+                ];
+                
+                return (
                 <div
                   key={consultant.id}
-                  className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-xl transition-all duration-300 flex flex-col h-full"
+                  className="bg-white rounded-2xl p-6 shadow-lg hover:shadow-2xl transition-all duration-300 border border-gray-100"
                 >
-                  {/* Avatar & Basic Info */}
-                  <div className="flex items-start gap-4 mb-4">
-                    <img
-                      src={consultant.avatar}
-                      alt={consultant.name}
-                      className="w-16 h-16 rounded-full object-cover"
-                    />
-                    <div className="flex-1">
-                      <h3 className="font-semibold text-gray-800 mb-1">{consultant.name}</h3>
-                      <div className="flex items-center gap-2 text-sm text-gray-600 mb-2">
-                        <MapPin className="w-4 h-4" />
-                        {consultant.workplace}
-                      </div>
+                  <div className="flex gap-6">
+                    {/* Khu vực 1: Avatar */}
+                    <div className="flex-shrink-0">
+                      <img
+                        src={consultant.avatar}
+                        alt={consultant.name}
+                        className="w-20 h-20 rounded-full object-cover border-3 border-teal-100 shadow-md"
+                      />
                     </div>
-                  </div>
 
-                  {/* Skills */}
-                  <div className="mb-4">
-                    <div className="flex flex-wrap gap-2">
-                      {consultant.skills.map((skill, index) => (
-                        <span
-                          key={index}
-                          className="px-3 py-1 bg-blue-100 text-blue-700 rounded-full text-sm"
-                        >
-                          {skill}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-
-                  {/* Methods */}
-                  <div className="mb-4">
-                    <div className="flex items-center gap-2 text-sm text-gray-600">
-                      <Video className="w-4 h-4" />
-                      <span>Hình thức: {consultant.methods.join(", ")}</span>
-                    </div>
-                  </div>
-
-                  {/* Available Slots */}
-                  <div className="mb-4 flex-1">
-                    <p className="text-sm font-medium text-gray-700 mb-2">
-                      Khung giờ có sẵn ({consultant.availableSlots.length}):
-                    </p>
-                    <div className="min-h-[80px]">
-                      {consultant.availableSlots.length > 0 ? (
-                    <div className="flex flex-wrap gap-2">
-                          {consultant.availableSlots.slice(0, 5).map((slot, index) => (
-                        <span
-                          key={index}
-                          className="px-3 py-1 bg-green-100 text-green-700 rounded-lg text-sm"
-                        >
-                              {new Date(slot.date).toLocaleDateString('vi-VN')} - {slot.time}
-                        </span>
-                      ))}
-                          {consultant.availableSlots.length > 5 && (
-                            <span className="px-3 py-1 bg-gray-100 text-gray-600 rounded-lg text-sm">
-                              +{consultant.availableSlots.length - 5} khác
-                            </span>
+                    {/* Khu vực 2: Nội dung chính */}
+                    <div className="flex-1 min-w-0">
+                      {/* Header: Tên, Nơi làm việc & Đánh giá */}
+                      <div className="mb-4">
+                        <div className="flex items-start justify-between gap-4 mb-2">
+                          <div className="flex-1">
+                            <h3 className="text-xl font-bold text-teal-700 mb-1.5">
+                              {consultant.name}
+                            </h3>
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <MapPin className="w-4 h-4 text-teal-500 flex-shrink-0" />
+                              <span>{consultant.workplace}</span>
+                            </div>
+                          </div>
+                          
+                          {/* Đánh giá - Đặt cùng hàng với tên */}
+                          {consultant.averageRating > 0 ? (
+                            <div className="flex items-center gap-2 bg-amber-50 rounded-lg px-3 py-2 border border-amber-200">
+                              <div className="flex items-center gap-0.5">
+                                {[1, 2, 3, 4, 5].map((star) => (
+                                  <Star
+                                    key={star}
+                                    className={`w-3.5 h-3.5 ${
+                                      star <= Math.round(consultant.averageRating)
+                                        ? 'fill-amber-400 text-amber-400'
+                                        : 'text-gray-300'
+                                    }`}
+                                  />
+                                ))}
+                              </div>
+                              <div className="flex items-baseline gap-1">
+                                <span className="text-base font-bold text-amber-600">
+                                  {consultant.averageRating.toFixed(1)}
+                                </span>
+                                <span className="text-xs text-gray-500">/5</span>
+                              </div>
+                              <span className="text-xs text-gray-600">
+                                ({consultant.totalRatings})
+                              </span>
+                              <button
+                                onClick={() => {
+                                  setSelectedConsultantForRating(consultant);
+                                  setShowRatingDetailModal(true);
+                                }}
+                                className="text-xs text-teal-600 hover:text-teal-700 hover:underline ml-1"
+                              >
+                                Chi tiết
+                              </button>
+                            </div>
+                          ) : (
+                            <div className="text-xs text-gray-500 bg-gray-50 rounded-lg px-3 py-2 border border-gray-200">
+                              Chưa có đánh giá
+                            </div>
                           )}
                         </div>
-                      ) : (
-                        <div className="text-sm text-gray-500 italic">
-                          Hiện chưa có lịch trống
+                      </div>
+
+                      {/* Mô tả */}
+                      {consultant.bio && (
+                        <div className="mb-4">
+                          <p className="text-sm text-gray-700 leading-relaxed line-clamp-2">
+                            {bioDisplay}
+                          </p>
+                          {consultant.bio && consultant.bio.length > 120 && (
+                            <button
+                              onClick={() => setExpandedBios(prev => ({
+                                ...prev,
+                                [consultant.id]: !prev[consultant.id]
+                              }))}
+                              className="text-xs text-teal-600 hover:text-teal-700 hover:underline mt-1"
+                            >
+                              {isBioExpanded ? 'Thu gọn' : 'Xem thêm'}
+                            </button>
+                          )}
                         </div>
+                      )}
+
+                      {/* Skills Tags */}
+                      <div className="flex flex-wrap gap-2 mb-4">
+                        {consultant.skills.map((skill, index) => {
+                          const color = skillColors[index % skillColors.length];
+                          return (
+                            <span
+                              key={index}
+                              className={`px-3 py-1.5 ${color.bg} ${color.text} ${color.border} border rounded-full text-xs font-semibold`}
+                            >
+                              {skill}
+                            </span>
+                          );
+                        })}
+                      </div>
+
+                      {/* Hình thức & Lịch hẹn */}
+                      <div className="flex gap-4">
+                        <div className="flex items-center gap-2 text-sm text-gray-700">
+                          <Video className="w-4 h-4 text-teal-600 flex-shrink-0" />
+                          <span className="font-medium">Hình thức:</span>
+                          <span className="text-gray-600">{consultant.methods.join(", ")}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm">
+                          <Clock className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                          <span className="font-medium text-blue-900">Lịch hẹn:</span>
+                          <span className="text-blue-700">
+                            {consultant.availableSlots.length > 0 
+                              ? `${consultant.availableSlots.length} khung giờ`
+                              : 'Đang cập nhật'}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Khu vực 3: CTA Buttons */}
+                    <div className="flex-shrink-0 flex flex-col gap-3 w-48">
+                      <button
+                        onClick={() => openScheduleDrawer(consultant)}
+                        className="w-full py-2.5 rounded-xl font-bold text-white bg-gradient-to-r from-teal-500 to-teal-600 hover:from-teal-600 hover:to-teal-700 shadow-md hover:shadow-lg transition-all duration-300 text-sm"
+                      >
+                        Xem lịch
+                      </button>
+                      {consultant.availableSlots.length > 0 ? (
+                        <button
+                          onClick={() => {
+                            const sorted = sortSlotsAsc(consultant.availableSlots);
+                            setSelectedConsultant(consultant);
+                            setSelectedSlot(sorted[0]);
+                            setShowBookingModal(true);
+                          }}
+                          className="w-full py-2.5 rounded-xl font-semibold border-2 border-teal-500 text-teal-600 hover:bg-teal-50 transition-all duration-300 text-sm"
+                        >
+                          Đặt nhanh
+                        </button>
+                      ) : (
+                        <button
+                          disabled
+                          className="w-full py-2.5 rounded-xl font-semibold border border-gray-300 text-gray-400 cursor-not-allowed bg-gray-50 text-sm"
+                        >
+                          Yêu cầu tư vấn
+                        </button>
                       )}
                     </div>
                   </div>
-
-                  {/* Action Buttons */}
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => {
-                        const sorted = sortSlotsAsc(consultant.availableSlots);
-                        if (sorted.length > 0) {
-                          setSelectedConsultant(consultant);
-                          setSelectedSlot(sorted[0]);
-                          setShowBookingModal(true);
-                        }
-                      }}
-                      disabled={consultant.availableSlots.length === 0}
-                      className={`flex-1 py-3 rounded-xl font-semibold transition-all duration-300 ${
-                        consultant.availableSlots.length === 0
-                          ? 'bg-gray-300 text-gray-500 cursor-not-allowed'
-                          : 'bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700'
-                      }`}
-                    >
-                      {consultant.availableSlots.length === 0 ? 'Không có lịch' : 'Đặt nhanh'}
-                    </button>
-                    <button
-                      onClick={() => openScheduleDrawer(consultant)}
-                      className="flex-1 py-3 rounded-xl font-semibold border border-gray-300 hover:bg-gray-50"
-                    >
-                      Xem lịch
-                    </button>
-                  </div>
                 </div>
-              ))}
+              )})}
             </div>
 
             {consultants.length === 0 && !consultantsLoading && !error && (
@@ -1387,6 +1688,351 @@ export default function Appointments() {
           onClose={() => setShowPaymentModal(false)}
           bookingData={bookingData}
         />
+
+        {/* Rating Modal */}
+        {showRatingModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl w-full max-w-md p-6">
+              <div className="flex items-center justify-between mb-4">
+                <div>
+                  <div className="font-semibold text-gray-800">
+                    {ratingMode === 'create' && 'Đánh giá buổi tư vấn'}
+                    {ratingMode === 'edit' && 'Sửa đánh giá buổi tư vấn'}
+                    {ratingMode === 'view' && 'Xem đánh giá buổi tư vấn'}
+                  </div>
+                  {ratingSchedule && (
+                    <div className="text-sm text-gray-600">{ratingSchedule.advisorName} • {new Date(ratingSchedule.date).toLocaleDateString('vi-VN')} ({ratingSchedule.start}-{ratingSchedule.end})</div>
+                  )}
+                </div>
+                <button onClick={() => setShowRatingModal(false)} className="px-3 py-1 rounded-lg bg-gray-100 hover:bg-gray-200">✕</button>
+              </div>
+
+              {/* Stars */}
+              <div className="mb-4">
+                <div className="text-sm text-gray-700 mb-2">Điểm đánh giá</div>
+                <div className="flex items-center gap-2">
+                  {[1,2,3,4,5].map(n => (
+                    <button
+                      key={n}
+                      type="button"
+                      onClick={() => ratingMode !== 'view' && setRatingForm(prev => ({ ...prev, diemdanhgia: n }))}
+                      className={`w-8 h-8 rounded-full flex items-center justify-center border ${ratingForm.diemdanhgia >= n ? 'bg-yellow-400 text-white border-yellow-400' : 'bg-white text-gray-500 border-gray-300'} ${ratingMode==='view' ? 'cursor-default' : 'hover:border-yellow-400'}`}
+                    >
+                      ★
+                    </button>
+                  ))}
+                  <span className="ml-2 text-sm text-gray-600">{Number(ratingForm.diemdanhgia).toFixed(1)}/5.0</span>
+                </div>
+              </div>
+
+              {/* Comment */}
+              <div className="mb-4">
+                <div className="text-sm text-gray-700 mb-2">Nhận xét</div>
+                <textarea
+                  rows={4}
+                  value={ratingForm.nhanxet}
+                  onChange={(e) => setRatingForm(prev => ({ ...prev, nhanxet: e.target.value }))}
+                  disabled={ratingMode === 'view'}
+                  className="w-full px-3 py-2 border rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 disabled:bg-gray-100"
+                  placeholder="Chia sẻ cảm nhận của bạn về buổi tư vấn..."
+                />
+              </div>
+
+              {/* Anonymous */}
+              <div className="mb-6 flex items-center gap-2">
+                <input
+                  id="chk_an_danh"
+                  type="checkbox"
+                  checked={!!ratingForm.an_danh}
+                  onChange={(e) => setRatingForm(prev => ({ ...prev, an_danh: e.target.checked ? 1 : 0 }))}
+                  disabled={ratingMode === 'view'}
+                />
+                <label htmlFor="chk_an_danh" className="text-sm text-gray-700">Ẩn danh khi hiển thị đánh giá</label>
+              </div>
+
+              <div className="flex gap-3 justify-end">
+                <button
+                  onClick={() => setShowRatingModal(false)}
+                  className="px-4 py-2 border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50"
+                >
+                  Đóng
+                </button>
+                {ratingMode === 'create' && (
+                  <button
+                    onClick={submitCreateRating}
+                    className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+                  >
+                    Gửi đánh giá
+                  </button>
+                )}
+                {ratingMode === 'edit' && (
+                  <button
+                    onClick={submitUpdateRating}
+                    className="px-4 py-2 rounded-lg bg-blue-600 text-white hover:bg-blue-700"
+                  >
+                    Lưu thay đổi
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Rating Detail Modal */}
+        {showRatingDetailModal && selectedConsultantForRating && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl w-full max-w-2xl max-h-[80vh] overflow-hidden flex flex-col">
+              <div className="p-6 border-b flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-800">
+                    Đánh giá của {selectedConsultantForRating.name}
+                  </h3>
+                  {selectedConsultantForRating.averageRating > 0 && (
+                    <div className="flex items-center gap-2 mt-2">
+                      <div className="flex items-center gap-1">
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Star
+                            key={star}
+                            className={`w-5 h-5 ${
+                              star <= Math.round(selectedConsultantForRating.averageRating)
+                                ? 'fill-yellow-400 text-yellow-400'
+                                : 'text-gray-300'
+                            }`}
+                          />
+                        ))}
+                      </div>
+                      <span className="text-lg font-bold text-gray-700">
+                        {selectedConsultantForRating.averageRating.toFixed(1)}
+                      </span>
+                      <span className="text-sm text-gray-500">
+                        ({selectedConsultantForRating.totalRatings} đánh giá)
+                      </span>
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => {
+                    setShowRatingDetailModal(false);
+                    setSelectedConsultantForRating(null);
+                  }}
+                  className="px-3 py-1 rounded-lg bg-gray-100 hover:bg-gray-200"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-6">
+                {selectedConsultantForRating.reviews && selectedConsultantForRating.reviews.length > 0 ? (
+                  <div className="space-y-4">
+                    {selectedConsultantForRating.reviews.map((review, idx) => (
+                      <div key={idx} className="border border-gray-200 rounded-lg p-4">
+                        <div className="flex items-center justify-between mb-2">
+                          <div className="flex items-center gap-2">
+                            {[1, 2, 3, 4, 5].map((star) => (
+                              <Star
+                                key={star}
+                                className={`w-4 h-4 ${
+                                  star <= review.diemdanhgia
+                                    ? 'fill-yellow-400 text-yellow-400'
+                                    : 'text-gray-300'
+                                }`}
+                              />
+                            ))}
+                            <span className="text-sm font-semibold text-gray-700">
+                              {review.diemdanhgia.toFixed(1)}/5.0
+                            </span>
+                          </div>
+                          <span className="text-xs text-gray-500">
+                            {new Date(review.ngaydanhgia).toLocaleDateString('vi-VN')}
+                          </span>
+                        </div>
+                        {review.nhanxet && (
+                          <p className="text-sm text-gray-700 mb-2 whitespace-pre-wrap">
+                            {review.nhanxet}
+                          </p>
+                        )}
+                        <p className="text-xs text-gray-500">
+                          - {review.nguoi_danh_gia}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>Chưa có đánh giá nào</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Consultation Notes Modal */}
+        {showNotesModal && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-2xl w-full max-w-3xl max-h-[90vh] overflow-hidden flex flex-col">
+              <div className="p-6 border-b flex items-center justify-between">
+                <div>
+                  <h3 className="text-xl font-semibold text-gray-800">Nhận xét của tư vấn viên</h3>
+                  {selectedAppointmentForNotes && (
+                    <div className="text-sm text-gray-600 mt-1">
+                      {selectedAppointmentForNotes.advisorName} • {new Date(selectedAppointmentForNotes.date).toLocaleDateString('vi-VN')} ({selectedAppointmentForNotes.start}-{selectedAppointmentForNotes.end})
+                    </div>
+                  )}
+                </div>
+                <button
+                  onClick={() => {
+                    setShowNotesModal(false);
+                    setNotesData(null);
+                    setSelectedAppointmentForNotes(null);
+                  }}
+                  className="px-3 py-1 rounded-lg bg-gray-100 hover:bg-gray-200"
+                >
+                  ✕
+                </button>
+              </div>
+              
+              <div className="flex-1 overflow-y-auto p-6">
+                {notesLoading ? (
+                  <div className="flex items-center justify-center py-12">
+                    <Loader2 className="w-8 h-8 animate-spin text-blue-500" />
+                    <span className="ml-2 text-gray-600">Đang tải nhận xét...</span>
+                  </div>
+                ) : notesData ? (
+                  (() => {
+                    const ghiChu = notesData.ghi_chu_chot || notesData.ghi_chu_nhap;
+                    const evidenceFiles = notesData.minh_chung || [];
+                    
+                    if (!ghiChu) {
+                      return (
+                        <div className="text-center py-8 text-gray-500">
+                          <p>Tư vấn viên chưa cập nhật nhận xét cho buổi tư vấn này.</p>
+                        </div>
+                      );
+                    }
+                    
+                    return (
+                      <div className="space-y-6">
+                        {/* Ghi chú */}
+                        <div>
+                          <h4 className="text-lg font-semibold mb-3 text-gray-800">Ghi chú buổi tư vấn</h4>
+                          <div className="space-y-4">
+                            {ghiChu.noi_dung && (
+                              <div>
+                                <p className="text-sm font-medium text-gray-700 mb-1">Nội dung:</p>
+                                <div className="bg-gray-50 p-3 rounded-lg">
+                                  <p className="text-sm whitespace-pre-wrap">{ghiChu.noi_dung}</p>
+                                </div>
+                              </div>
+                            )}
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                              {ghiChu.ket_luan_nganh && (
+                                <div>
+                                  <p className="text-sm font-medium text-gray-700 mb-1">Kết luận ngành:</p>
+                                  <p className="text-sm">{ghiChu.ket_luan_nganh}</p>
+                                </div>
+                              )}
+                              {ghiChu.muc_quan_tam && (
+                                <div>
+                                  <p className="text-sm font-medium text-gray-700 mb-1">Mức quan tâm:</p>
+                                  <p className="text-sm">{ghiChu.muc_quan_tam}/5</p>
+                                </div>
+                              )}
+                              {ghiChu.diem_du_kien && (
+                                <div>
+                                  <p className="text-sm font-medium text-gray-700 mb-1">Điểm dự kiến:</p>
+                                  <p className="text-sm">{ghiChu.diem_du_kien}</p>
+                                </div>
+                              )}
+                            </div>
+                            
+                            {ghiChu.yeu_cau_bo_sung && (
+                              <div>
+                                <p className="text-sm font-medium text-gray-700 mb-1">Yêu cầu bổ sung:</p>
+                                <div className="bg-gray-50 p-3 rounded-lg">
+                                  <p className="text-sm whitespace-pre-wrap">{ghiChu.yeu_cau_bo_sung}</p>
+                                </div>
+                              </div>
+                            )}
+                            
+                            {ghiChu.tom_tat && (
+                              <div>
+                                <p className="text-sm font-medium text-gray-700 mb-1">Tóm tắt:</p>
+                                <div className="bg-gray-50 p-3 rounded-lg">
+                                  <p className="text-sm whitespace-pre-wrap">{ghiChu.tom_tat}</p>
+                                </div>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                        
+                        {/* Minh chứng */}
+                        {evidenceFiles.length > 0 && (
+                          <div>
+                            <h4 className="text-lg font-semibold mb-3 text-gray-800">
+                              Minh chứng ({evidenceFiles.length} {evidenceFiles.length === 1 ? 'mục' : 'mục'})
+                            </h4>
+                            <div className="space-y-3">
+                              {evidenceFiles.map((file) => {
+                                const isImage = (file.loai_file || file.loaiFile || '').toLowerCase() === 'hinh_anh' || 
+                                               (file.ten_file || file.tenFile || '').match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i);
+                                const fileUrl = file.duong_dan || file.duongDan || file.url;
+                                
+                                return (
+                                  <div key={file.id_file || file.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                                    <div className="flex items-start justify-between mb-2">
+                                      <div className="flex-1">
+                                        <p className="text-sm font-medium text-gray-700">{file.ten_file || file.tenFile || "Không có tên"}</p>
+                                        <p className="text-xs text-gray-500 mt-1">
+                                          {file.loai_file || file.loaiFile || "-"}
+                                          {file.la_minh_chung && ' • Minh chứng'}
+                                        </p>
+                                        {(file.mo_ta || file.moTa) && (
+                                          <p className="text-xs text-gray-600 mt-1">{file.mo_ta || file.moTa}</p>
+                                        )}
+                                      </div>
+                                      {fileUrl && (
+                                        <a
+                                          href={fileUrl}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          className="text-sm text-blue-600 hover:underline ml-2"
+                                        >
+                                          Xem file →
+                                        </a>
+                                      )}
+                                    </div>
+                                    {isImage && fileUrl && (
+                                      <div className="mt-3">
+                                        <img
+                                          src={fileUrl}
+                                          alt={file.ten_file || file.tenFile || 'Preview'}
+                                          className="max-w-full h-auto max-h-64 rounded border border-gray-200"
+                                          onError={(e) => {
+                                            e.target.style.display = 'none';
+                                          }}
+                                        />
+                                      </div>
+                                    )}
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <p>Tư vấn viên chưa cập nhật nhận xét cho buổi tư vấn này.</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Chat Modal */}
         {showChatModal && chatSession && (

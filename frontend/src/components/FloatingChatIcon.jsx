@@ -28,21 +28,13 @@ export default function FloatingChatIcon() {
         try {
           const user = JSON.parse(userStr);
           userId = user.idnguoidung || user.id || null;
-          console.log('Got userId from user object:', userId);
         } catch (e) {
           console.error('Error parsing user object:', e);
         }
       }
     }
     
-    // Nếu vẫn không có, dùng giá trị mặc định cho test (có thể xóa sau)
-    if (!userId) {
-      console.warn('No userId found in localStorage. Using default for testing.');
-      // userId = '5'; // Uncomment này nếu muốn test với user ID mặc định
-    }
-    
     setCurrentUserId(userId);
-    console.log('Current userId set to:', userId);
   }, []);
 
   // Scroll to bottom khi có tin nhắn mới
@@ -78,10 +70,6 @@ export default function FloatingChatIcon() {
     if (isOpen && inputRef.current) {
       setTimeout(() => {
         inputRef.current?.focus();
-        console.log('Input ref:', inputRef.current);
-        console.log('Input disabled:', inputRef.current?.disabled);
-        console.log('RoomId:', roomId);
-        console.log('Sending:', sending);
       }, 200);
     }
   }, [isOpen, roomId]);
@@ -94,7 +82,6 @@ export default function FloatingChatIcon() {
 
     try {
       setLoading(true);
-      console.log('Creating room for user:', currentUserId);
       const response = await fetch('http://localhost:8000/api/chat-support/get-or-create-room', {
         method: 'POST',
         headers: {
@@ -106,15 +93,11 @@ export default function FloatingChatIcon() {
         })
       });
 
-      console.log('Response status:', response.status);
       const data = await response.json();
-      console.log('Create room response:', data);
       
       if (data.success && data.data) {
         setRoomId(data.data.idphongchat_support);
-        console.log('Room ID set to:', data.data.idphongchat_support);
       } else {
-        console.error('Failed to create room:', data);
         toast.push({ type: 'error', title: data.message || 'Không thể tạo phòng chat' });
         // Cho phép nhập ngay cả khi chưa có room - sẽ tạo khi gửi
       }
@@ -171,13 +154,6 @@ export default function FloatingChatIcon() {
       const formData = new FormData();
       formData.append('file', file);
 
-      console.log('Uploading file:', {
-        name: file.name,
-        size: file.size,
-        type: file.type,
-        sizeMB: (file.size / 1024 / 1024).toFixed(2)
-      });
-
       const response = await fetch('http://localhost:8000/api/chat-support/upload-file', {
         method: 'POST',
         body: formData,
@@ -185,14 +161,6 @@ export default function FloatingChatIcon() {
       });
 
       const data = await response.json();
-      
-      console.log('Upload response:', {
-        status: response.status,
-        success: data.success,
-        message: data.message,
-        errors: data.errors,
-        debug: data.debug
-      });
 
       if (data.success) {
         // Trả về cả URL và tên file gốc
@@ -261,28 +229,22 @@ export default function FloatingChatIcon() {
   };
 
   const sendMessage = async () => {
-    console.log('sendMessage called - messageInput:', messageInput, 'attachedFile:', attachedFile, 'currentUserId:', currentUserId, 'sending:', sending, 'roomId:', roomId);
-    
     if ((!messageInput.trim() && !attachedFile)) {
-      console.log('Message and file are empty');
       return;
     }
     
     if (!currentUserId) {
-      console.log('No currentUserId');
       toast.push({ type: 'error', title: 'Vui lòng đăng nhập' });
       return;
     }
     
     if (sending || uploading) {
-      console.log('Already sending or uploading');
       return;
     }
 
     // Nếu chưa có roomId, tạo room trước và lấy roomId trực tiếp từ response
     let currentRoomId = roomId;
     if (!currentRoomId) {
-      console.log('No roomId, creating room first...');
       try {
         const response = await fetch('http://localhost:8000/api/chat-support/get-or-create-room', {
           method: 'POST',
@@ -296,14 +258,11 @@ export default function FloatingChatIcon() {
         });
 
         const data = await response.json();
-        console.log('Create room response in sendMessage:', data);
         
         if (data.success && data.data && data.data.idphongchat_support) {
           currentRoomId = data.data.idphongchat_support;
           setRoomId(currentRoomId); // Update state
-          console.log('Room ID set to:', currentRoomId);
         } else {
-          console.error('Failed to create room:', data);
           toast.push({ type: 'error', title: data.message || 'Không thể tạo phòng chat. Vui lòng thử lại.' });
           return;
         }
@@ -379,7 +338,7 @@ export default function FloatingChatIcon() {
         <button
           onClick={handleOpen}
           type="button"
-          className="fixed bottom-6 right-6 z-[100] w-14 h-14 bg-green-600 hover:bg-green-700 text-white rounded-full shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110 cursor-pointer"
+          className="fixed bottom-6 right-6 z-[100] w-14 h-14 bg-green-600 hover:bg-green-700 text-white rounded-full shadow-lg flex items-center justify-center transition-all duration-300 hover:scale-110 cursor-pointer animate-shake"
           aria-label="Mở chat hỗ trợ"
         >
           <svg

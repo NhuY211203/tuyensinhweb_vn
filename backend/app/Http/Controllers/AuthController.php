@@ -18,9 +18,31 @@ use App\Models\ThanhToan;
 use Carbon\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Cloudinary\Cloudinary as CloudinaryClient;
 
 class AuthController extends Controller
 {
+    private function makeCloudinaryClient(): CloudinaryClient
+    {
+        $cloud = config('cloudinary.cloud');
+
+        if (
+            empty($cloud['cloud_name']) ||
+            empty($cloud['api_key']) ||
+            empty($cloud['api_secret'])
+        ) {
+            throw new \RuntimeException('Cloudinary credentials are missing. Please configure CLOUDINARY_URL or CLOUDINARY_* env variables.');
+        }
+
+        return new CloudinaryClient([
+            'cloud' => [
+                'cloud_name' => $cloud['cloud_name'],
+                'api_key' => $cloud['api_key'],
+                'api_secret' => $cloud['api_secret'],
+            ],
+        ]);
+    }
+
     public function register(Request $request): JsonResponse
     {
         // Validation rules
@@ -248,6 +270,10 @@ class AuthController extends Controller
             'diachi' => 'nullable|string|max:500',
             'ngaysinh' => 'nullable|date',
             'gioitinh' => 'nullable|in:Nam,Nữ,Khác',
+            'gioithieu' => 'nullable|string|max:2000',
+            'idnhomnganh' => 'nullable|integer|exists:nhomnganh,idnhomnganh',
+            'avatar' => 'nullable|file|image|max:5120',
+            'hinhdaidien' => 'nullable|url',
         ]);
 
         if ($validator->fails()) {
@@ -260,19 +286,80 @@ class AuthController extends Controller
 
         try {
             $user = NguoiDung::findOrFail($request->id);
-            $user->hoten = $request->hoten ?? $user->hoten;
-            $user->email = $request->email ?? $user->email;
-            $user->sodienthoai = $request->sodienthoai ?? $user->sodienthoai;
-            $user->diachi = $request->diachi ?? $user->diachi;
-            $user->ngaysinh = $request->ngaysinh ?? $user->ngaysinh;
-            $user->gioitinh = $request->gioitinh ?? $user->gioitinh;
+            if ($request->has('hoten')) {
+                $user->hoten = $request->hoten;
+            }
+            if ($request->has('email')) {
+                $user->email = $request->email;
+            }
+            if ($request->has('sodienthoai')) {
+                $user->sodienthoai = $request->sodienthoai;
+            }
+            if ($request->has('diachi')) {
+                $user->diachi = $request->diachi;
+            }
+            if ($request->has('ngaysinh')) {
+                $user->ngaysinh = $request->ngaysinh;
+            }
+            if ($request->has('gioitinh')) {
+                $user->gioitinh = $request->gioitinh;
+            }
+            if ($request->has('gioithieu')) {
+                $user->gioithieu = $request->gioithieu;
+            }
+            if ($request->has('idnhomnganh')) {
+                $user->idnhomnganh = $request->idnhomnganh;
+            }
+
+            if ($request->hasFile('avatar')) {
+                try {
+                    $client = $this->makeCloudinaryClient();
+                    $publicId = 'consultants/avatars/consultant_' . $user->idnguoidung;
+                    $uploadResult = $client->uploadApi()->upload(
+                        $request->file('avatar')->getRealPath(),
+                        [
+                            'public_id' => $publicId,
+                            'overwrite' => true,
+                            'resource_type' => 'image',
+                            'transformation' => [
+                                ['width' => 600, 'height' => 600, 'crop' => 'fill', 'gravity' => 'face'],
+                                ['quality' => 'auto', 'fetch_format' => 'auto'],
+                            ],
+                        ]
+                    );
+                    $user->hinhdaidien = $uploadResult['secure_url'] ?? $user->hinhdaidien;
+                } catch (\Exception $cloudError) {
+                    \Log::error('Upload avatar failed: ' . $cloudError->getMessage());
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Không thể upload ảnh đại diện lên Cloudinary',
+                        'error' => $cloudError->getMessage(),
+                    ], 500);
+                }
+            } elseif ($request->filled('hinhdaidien')) {
+                $user->hinhdaidien = $request->hinhdaidien;
+            }
+
             $user->ngaycapnhat = now();
             $user->save();
+
+            $responseData = $user->only([
+                'idnguoidung',
+                'email',
+                'hoten',
+                'sodienthoai',
+                'diachi',
+                'ngaysinh',
+                'gioitinh',
+                'gioithieu',
+                'hinhdaidien',
+                'idnhomnganh',
+            ]);
 
             return response()->json([
                 'success' => true,
                 'message' => 'Cập nhật hồ sơ thành công',
-                'data' => $user->only(['idnguoidung','email','hoten','sodienthoai','diachi','ngaysinh','gioitinh'])
+                'data' => $responseData,
             ]);
         } catch (\Exception $e) {
             return response()->json([
@@ -448,7 +535,9 @@ class AuthController extends Controller
                 'email',
                 'sodienthoai',
                 'idnhomnganh',
-                'idvaitro'
+                'idvaitro',
+                'gioithieu',
+                'hinhdaidien'
             )->get();
 
             // Format response
@@ -462,7 +551,9 @@ class AuthController extends Controller
                         'id' => $consultant->nhomNganh->idnhomnganh,
                         'ten' => $consultant->nhomNganh->tennhom ?? 'Chưa xác định'
                     ] : null,
-                    'vaitro' => $consultant->vaiTro ? $consultant->vaiTro->tenvaitro : 'Tư vấn viên'
+                    'vaitro' => $consultant->vaiTro ? $consultant->vaiTro->tenvaitro : 'Tư vấn viên',
+                    'bio' => $consultant->gioithieu,
+                    'avatar' => $consultant->hinhdaidien,
                 ];
             });
 
@@ -589,6 +680,251 @@ class AuthController extends Controller
     }
 
     /**
+     * Tạo người dùng mới (cho admin/staff)
+     */
+    public function createUser(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'email' => 'required|email|unique:nguoidung,email|max:255',
+            'hoten' => 'required|string|max:255',
+            'matkhau' => 'required|string|min:6|max:255',
+            'sodienthoai' => 'nullable|string|regex:/^[0-9]{10,11}$/|unique:nguoidung,sodienthoai',
+            'diachi' => 'nullable|string|max:500',
+            'ngaysinh' => 'nullable|date|before:today',
+            'gioitinh' => 'nullable|in:Nam,Nữ,Khác',
+            'idvaitro' => 'required|integer|exists:vaitro,idvaitro',
+            'idnhomnganh' => 'nullable|integer|exists:nhomnganh,idnhomnganh',
+            'trangthai' => 'nullable|integer|in:0,1',
+        ], [
+            'email.required' => 'Email là bắt buộc',
+            'email.email' => 'Email không đúng định dạng',
+            'email.unique' => 'Email này đã được sử dụng',
+            'email.max' => 'Email không được quá 255 ký tự',
+            'hoten.required' => 'Họ và tên là bắt buộc',
+            'hoten.max' => 'Họ và tên không được quá 255 ký tự',
+            'matkhau.required' => 'Mật khẩu là bắt buộc',
+            'matkhau.min' => 'Mật khẩu phải có ít nhất 6 ký tự',
+            'matkhau.max' => 'Mật khẩu không được quá 255 ký tự',
+            'sodienthoai.regex' => 'Số điện thoại phải có 10-11 chữ số',
+            'sodienthoai.unique' => 'Số điện thoại này đã được sử dụng',
+            'ngaysinh.date' => 'Ngày sinh không đúng định dạng',
+            'ngaysinh.before' => 'Ngày sinh phải trước ngày hiện tại',
+            'gioitinh.in' => 'Giới tính phải là Nam, Nữ hoặc Khác',
+            'idvaitro.required' => 'Vai trò là bắt buộc',
+            'idvaitro.exists' => 'Vai trò không tồn tại',
+            'idnhomnganh.exists' => 'Nhóm ngành không tồn tại',
+            'trangthai.in' => 'Trạng thái không hợp lệ',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Dữ liệu không hợp lệ',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $nguoiDung = NguoiDung::create([
+                'idvaitro' => $request->idvaitro,
+                'idnhomnganh' => $request->idnhomnganh,
+                'taikhoan' => $request->email,
+                'matkhau' => $request->matkhau,
+                'email' => $request->email,
+                'hoten' => $request->hoten,
+                'sodienthoai' => $request->sodienthoai,
+                'diachi' => $request->diachi,
+                'ngaysinh' => $request->ngaysinh,
+                'gioitinh' => $request->gioitinh,
+                'trangthai' => $request->trangthai ?? 1,
+                'ngaytao' => Carbon::now(),
+                'ngaycapnhat' => Carbon::now(),
+            ]);
+
+            // Load relationships
+            $nguoiDung->load(['vaiTro', 'nhomNganh']);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Tạo người dùng thành công',
+                'data' => [
+                    'idnguoidung' => $nguoiDung->idnguoidung,
+                    'email' => $nguoiDung->email,
+                    'hoten' => $nguoiDung->hoten,
+                    'sodienthoai' => $nguoiDung->sodienthoai,
+                    'diachi' => $nguoiDung->diachi,
+                    'ngaysinh' => $nguoiDung->ngaysinh,
+                    'gioitinh' => $nguoiDung->gioitinh,
+                    'vaitro' => $nguoiDung->vaiTro ? $nguoiDung->vaiTro->tenvaitro : null,
+                    'nhomnganh' => $nguoiDung->nhomNganh ? $nguoiDung->nhomNganh->tennhom : null,
+                    'trangthai' => $nguoiDung->trangthai,
+                ]
+            ], 201);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra khi tạo người dùng',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
+     * Cập nhật thông tin người dùng (cho admin/staff)
+     */
+    public function updateUser(Request $request): JsonResponse
+    {
+        $validator = Validator::make($request->all(), [
+            'id' => 'required|integer|exists:nguoidung,idnguoidung',
+            'email' => 'sometimes|email|max:255',
+            'hoten' => 'sometimes|string|max:255',
+            'matkhau' => 'sometimes|string|min:6|max:255',
+            'sodienthoai' => 'nullable|string|regex:/^[0-9]{10,11}$/',
+            'diachi' => 'nullable|string|max:500',
+            'ngaysinh' => 'nullable|date|before:today',
+            'gioitinh' => 'nullable|in:Nam,Nữ,Khác',
+            'idvaitro' => 'sometimes|integer|exists:vaitro,idvaitro',
+            'idnhomnganh' => 'nullable|integer|exists:nhomnganh,idnhomnganh',
+            'trangthai' => 'sometimes|integer|in:0,1',
+        ], [
+            'id.required' => 'ID người dùng là bắt buộc',
+            'id.exists' => 'Người dùng không tồn tại',
+            'email.email' => 'Email không đúng định dạng',
+            'email.max' => 'Email không được quá 255 ký tự',
+            'hoten.max' => 'Họ và tên không được quá 255 ký tự',
+            'matkhau.min' => 'Mật khẩu phải có ít nhất 6 ký tự',
+            'matkhau.max' => 'Mật khẩu không được quá 255 ký tự',
+            'sodienthoai.regex' => 'Số điện thoại phải có 10-11 chữ số',
+            'ngaysinh.date' => 'Ngày sinh không đúng định dạng',
+            'ngaysinh.before' => 'Ngày sinh phải trước ngày hiện tại',
+            'gioitinh.in' => 'Giới tính phải là Nam, Nữ hoặc Khác',
+            'idvaitro.exists' => 'Vai trò không tồn tại',
+            'idnhomnganh.exists' => 'Nhóm ngành không tồn tại',
+            'trangthai.in' => 'Trạng thái không hợp lệ',
+        ]);
+
+        if ($validator->fails()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Dữ liệu không hợp lệ',
+                'errors' => $validator->errors()
+            ], 422);
+        }
+
+        try {
+            $user = NguoiDung::findOrFail($request->id);
+
+            // Kiểm tra email trùng lặp nếu có thay đổi
+            if ($request->has('email') && $request->email !== $user->email) {
+                $existingEmail = NguoiDung::where('email', $request->email)
+                    ->where('idnguoidung', '!=', $request->id)
+                    ->exists();
+                if ($existingEmail) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Email này đã được sử dụng'
+                    ], 422);
+                }
+            }
+
+            // Kiểm tra số điện thoại trùng lặp nếu có thay đổi
+            if ($request->has('sodienthoai') && $request->sodienthoai !== $user->sodienthoai) {
+                $existingPhone = NguoiDung::where('sodienthoai', $request->sodienthoai)
+                    ->where('idnguoidung', '!=', $request->id)
+                    ->exists();
+                if ($existingPhone) {
+                    return response()->json([
+                        'success' => false,
+                        'message' => 'Số điện thoại này đã được sử dụng'
+                    ], 422);
+                }
+            }
+
+            // Nếu đang cố khóa user (status = 0), kiểm tra dữ liệu tương lai
+            if ($request->has('trangthai') && $request->trangthai == 0) {
+                $now = now();
+                
+                // Kiểm tra lịch tư vấn trong tương lai (là consultant)
+                $futureSchedulesAsConsultant = \App\Models\LichTuVan::where('idnguoidung', $user->idnguoidung)
+                    ->where(function($query) use ($now) {
+                        $query->where('ngayhen', '>', $now->format('Y-m-d'))
+                              ->orWhere(function($q) use ($now) {
+                                  $q->where('ngayhen', '=', $now->format('Y-m-d'))
+                                    ->where('giobatdau', '>', $now->format('H:i:s'));
+                              });
+                    })
+                    ->whereIn('duyetlich', [1, 2])
+                    ->exists();
+                
+                // Kiểm tra lịch tư vấn trong tương lai (là người đặt)
+                $futureSchedulesAsBooker = \App\Models\LichTuVan::where('idnguoidat', $user->idnguoidung)
+                    ->where(function($query) use ($now) {
+                        $query->where('ngayhen', '>', $now->format('Y-m-d'))
+                              ->orWhere(function($q) use ($now) {
+                                  $q->where('ngayhen', '=', $now->format('Y-m-d'))
+                                    ->where('giobatdau', '>', $now->format('H:i:s'));
+                              });
+                    })
+                    ->whereIn('duyetlich', [1, 2])
+                    ->exists();
+                
+                if ($futureSchedulesAsConsultant || $futureSchedulesAsBooker) {
+                    $role = $futureSchedulesAsConsultant ? 'tư vấn viên' : 'người đặt lịch';
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Không thể khóa tài khoản. Người dùng này còn lịch tư vấn sắp tới với vai trò {$role}. Vui lòng hoàn tất hoặc hủy các lịch tư vấn trước khi khóa."
+                    ], 403);
+                }
+            }
+
+            // Cập nhật thông tin
+            $updateData = [];
+            if ($request->has('email')) $updateData['email'] = $request->email;
+            if ($request->has('hoten')) $updateData['hoten'] = $request->hoten;
+            if ($request->has('matkhau')) $updateData['matkhau'] = $request->matkhau;
+            if ($request->has('sodienthoai')) $updateData['sodienthoai'] = $request->sodienthoai;
+            if ($request->has('diachi')) $updateData['diachi'] = $request->diachi;
+            if ($request->has('ngaysinh')) $updateData['ngaysinh'] = $request->ngaysinh;
+            if ($request->has('gioitinh')) $updateData['gioitinh'] = $request->gioitinh;
+            if ($request->has('idvaitro')) $updateData['idvaitro'] = $request->idvaitro;
+            if ($request->has('idnhomnganh')) $updateData['idnhomnganh'] = $request->idnhomnganh;
+            if ($request->has('trangthai')) $updateData['trangthai'] = $request->trangthai;
+            
+            $updateData['ngaycapnhat'] = now();
+
+            $user->update($updateData);
+
+            // Load relationships
+            $user->load(['vaiTro', 'nhomNganh']);
+
+            return response()->json([
+                'success' => true,
+                'message' => 'Cập nhật người dùng thành công',
+                'data' => [
+                    'idnguoidung' => $user->idnguoidung,
+                    'email' => $user->email,
+                    'hoten' => $user->hoten,
+                    'sodienthoai' => $user->sodienthoai,
+                    'diachi' => $user->diachi,
+                    'ngaysinh' => $user->ngaysinh,
+                    'gioitinh' => $user->gioitinh,
+                    'vaitro' => $user->vaiTro ? $user->vaiTro->tenvaitro : null,
+                    'nhomnganh' => $user->nhomNganh ? $user->nhomNganh->tennhom : null,
+                    'trangthai' => $user->trangthai,
+                ]
+            ]);
+
+        } catch (\Exception $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Có lỗi xảy ra khi cập nhật người dùng',
+                'error' => $e->getMessage()
+            ], 500);
+        }
+    }
+
+    /**
      * Cập nhật trạng thái người dùng (khóa/mở)
      */
     public function updateUserStatus(Request $request): JsonResponse
@@ -613,6 +949,44 @@ class AuthController extends Controller
 
         try {
             $user = NguoiDung::findOrFail($request->id);
+            
+            // Nếu đang cố khóa user (status = 0), kiểm tra dữ liệu tương lai
+            if ($request->status == 0) {
+                $now = now();
+                
+                // Kiểm tra lịch tư vấn trong tương lai (là consultant)
+                $futureSchedulesAsConsultant = \App\Models\LichTuVan::where('idnguoidung', $user->idnguoidung)
+                    ->where(function($query) use ($now) {
+                        $query->where('ngayhen', '>', $now->format('Y-m-d'))
+                              ->orWhere(function($q) use ($now) {
+                                  $q->where('ngayhen', '=', $now->format('Y-m-d'))
+                                    ->where('giobatdau', '>', $now->format('H:i:s'));
+                              });
+                    })
+                    ->whereIn('duyetlich', [1, 2]) // Đã đặt hoặc đã duyệt
+                    ->exists();
+                
+                // Kiểm tra lịch tư vấn trong tương lai (là người đặt)
+                $futureSchedulesAsBooker = \App\Models\LichTuVan::where('idnguoidat', $user->idnguoidung)
+                    ->where(function($query) use ($now) {
+                        $query->where('ngayhen', '>', $now->format('Y-m-d'))
+                              ->orWhere(function($q) use ($now) {
+                                  $q->where('ngayhen', '=', $now->format('Y-m-d'))
+                                    ->where('giobatdau', '>', $now->format('H:i:s'));
+                              });
+                    })
+                    ->whereIn('duyetlich', [1, 2]) // Đã đặt hoặc đã duyệt
+                    ->exists();
+                
+                if ($futureSchedulesAsConsultant || $futureSchedulesAsBooker) {
+                    $role = $futureSchedulesAsConsultant ? 'tư vấn viên' : 'người đặt lịch';
+                    return response()->json([
+                        'success' => false,
+                        'message' => "Không thể khóa tài khoản. Người dùng này còn lịch tư vấn sắp tới với vai trò {$role}. Vui lòng hoàn tất hoặc hủy các lịch tư vấn trước khi khóa."
+                    ], 403);
+                }
+            }
+            
             $user->trangthai = $request->status;
             $user->ngaycapnhat = now();
             $user->save();
@@ -647,6 +1021,7 @@ class AuthController extends Controller
             $status = $request->input('status'); // Thêm parameter status
             $duyetlich = $request->input('duyetlich'); // Thêm parameter duyetlich (1=Chờ duyệt, 2=Đã duyệt, 3=Từ chối)
             $bookedOnly = $request->input('booked_only'); // Filter chỉ lịch đã có người đăng ký
+            $dateFilter = $request->input('date_filter'); // 'today', 'week', 'month', 'past', 'future', 'all'
             
             // Debug logging
             \Log::info('Getting consultation schedules:', [
@@ -654,7 +1029,8 @@ class AuthController extends Controller
                 'date' => $date,
                 'status' => $status,
                 'duyetlich' => $duyetlich,
-                'booked_only' => $bookedOnly
+                'booked_only' => $bookedOnly,
+                'date_filter' => $dateFilter
             ]);
             
             $query = LichTuVan::with(['nguoiDung', 'nguoiDat', 'nguoiDuyet'])
@@ -677,19 +1053,34 @@ class AuthController extends Controller
                 $query->whereNotNull('idnguoidat');
                 \Log::info('Applied booked_only filter');
             }
-            
-            if ($date) {
-                $query->byDate($date);
+
+            // Date range filter (ưu tiên nếu có)
+            $startDate = $request->input('start_date');
+            $endDate = $request->input('end_date');
+            if ($startDate || $endDate) {
+                $query->betweenDates($startDate, $endDate);
+                \Log::info('Applied date range filter', ['start' => $startDate, 'end' => $endDate]);
             } else {
-                // Chỉ áp dụng filter upcoming() khi không phải filter booked_only
-                // Vì tab "Đã đăng ký" cần hiển thị cả lịch đã qua
-                if (!$bookedOnly) {
-                    $query->upcoming();
+                // Filter theo thời gian - Hiển thị TẤT CẢ lịch theo bộ lọc được chọn
+                if ($dateFilter === 'today') {
+                    $query->where('ngayhen', Carbon::today());
+                } elseif ($dateFilter === 'week') {
+                    $query->thisWeek();
+                } elseif ($dateFilter === 'month') {
+                    $query->thisMonth();
+                } elseif ($dateFilter === 'past') {
+                    $query->past();
+                } elseif ($dateFilter === 'future') {
+                    $query->future();
+                } elseif ($date) {
+                    // Nếu không có dateFilter nhưng có date parameter, dùng date
+                    $query->byDate($date);
                 }
+                // Nếu không có bất kỳ filter ngày nào → KHÔNG áp dụng upcoming mặc định → trả về tất cả
             }
             
-            $schedules = $query->orderBy('ngayhen')
-                ->orderBy('giobatdau')
+            $schedules = $query->orderBy('ngayhen', 'desc')
+                ->orderBy('giobatdau', 'desc')
                 ->get();
             
             // Debug: Log kết quả
@@ -1075,6 +1466,7 @@ class AuthController extends Controller
                 
                 return [
                     'idlichtuvan' => $schedule->idlichtuvan,
+                    'idnguoidung' => $schedule->idnguoidung, // ID của consultant tạo lịch
                     'tieude' => $schedule->tieude,
                     'noidung' => $schedule->noidung,
                     'chudetuvan' => $schedule->chudetuvan,
@@ -1485,8 +1877,9 @@ class AuthController extends Controller
     }
 
     /**
-     * Lấy các lịch đã đặt của một người dùng (idnguoidat)
-     * Trả về các trường tối thiểu để hiển thị ở dashboard người dùng
+     * Lấy các lịch của một người dùng (idnguoidat)
+     * - existing (mặc định): lịch sắp/đang diễn ra
+     * - completed (?status=completed): lịch đã tư vấn xong
      */
     public function getMyAppointments(Request $request): JsonResponse
     {
@@ -1500,13 +1893,26 @@ class AuthController extends Controller
                 ], 400);
             }
 
-            // Chỉ lấy các lịch: đã đặt (trangthai = 2)
-            // Kèm thông tin tư vấn viên và nhóm ngành
-            $schedules = LichTuVan::with(['nguoiDung.nhomNganh'])
+            $status = $request->query('status'); // null | 'completed'
+
+            $query = LichTuVan::with(['nguoiDung.nhomNganh'])
                 ->where('idnguoidat', $userId)
-                ->where('trangthai', '2')
-                // Chỉ lấy lịch chưa qua hạn (ngày sau hôm nay, hoặc hôm nay mà giờ kết thúc còn sau hiện tại)
-                ->where(function($q) {
+                ->where('duyetlich', 2); // Chỉ lấy lịch đã được duyệt
+
+            if ($status === 'completed') {
+                // Lịch đã tư vấn xong: quá khứ hoặc hôm nay nhưng đã qua giờ kết thúc
+                $query->where(function($q) {
+                    $q->where('ngayhen', '<', now()->toDateString())
+                      ->orWhere(function($q2) {
+                          $q2->where('ngayhen', now()->toDateString())
+                             ->where('ketthuc', '<=', now()->format('H:i:s'));
+                      });
+                })
+                ->orderBy('ngayhen', 'desc')
+                ->orderBy('giobatdau', 'desc');
+            } else {
+                // Lịch sắp tới/đang diễn ra: tương lai hoặc hôm nay nhưng chưa qua giờ kết thúc
+                $query->where(function($q) {
                     $q->where('ngayhen', '>', now()->toDateString())
                       ->orWhere(function($q2) {
                           $q2->where('ngayhen', now()->toDateString())
@@ -1514,8 +1920,10 @@ class AuthController extends Controller
                       });
                 })
                 ->orderBy('ngayhen')
-                ->orderBy('giobatdau')
-                ->get();
+                ->orderBy('giobatdau');
+            }
+
+            $schedules = $query->get();
 
             $data = $schedules->map(function ($schedule) {
                 return [
@@ -1876,6 +2284,8 @@ class AuthController extends Controller
                 'diachi',
                 'ngaysinh',
                 'gioitinh',
+                'gioithieu',
+                'hinhdaidien',
                 'idnhomnganh',
                 'idvaitro',
                 'trangthai',
@@ -1895,6 +2305,8 @@ class AuthController extends Controller
                     'address' => $consultant->diachi,
                     'birthday' => $consultant->ngaysinh,
                     'gender' => $consultant->gioitinh,
+                    'bio' => $consultant->gioithieu,
+                    'avatar' => $consultant->hinhdaidien,
                     'status' => $consultant->trangthai == 1 ? 'Hoạt động' : 'Tạm dừng',
                     'ngaytao' => $consultant->ngaytao,
                     'ngaycapnhat' => $consultant->ngaycapnhat
@@ -1945,6 +2357,8 @@ class AuthController extends Controller
                 'address' => $consultant->diachi,
                 'birthday' => $consultant->ngaysinh,
                 'gender' => $consultant->gioitinh,
+                'bio' => $consultant->gioithieu,
+                'avatar' => $consultant->hinhdaidien,
                 'nganhHoc' => $consultant->nhomNganh ? [
                     'id' => $consultant->nhomNganh->idnhomnganh,
                     'name' => $consultant->nhomNganh->tennhom
@@ -2263,8 +2677,7 @@ class AuthController extends Controller
             ]);
 
             $consultantId = $request->input('consultant_id');
-            $dateFilter = $request->input('date_filter'); // 'today', '7days', 'month'
-            $filterUpcoming = $request->input('filter_upcoming', false); // Chỉ lọc ngày hôm nay và các ngày chưa hết hạn
+            $dateFilter = $request->input('date_filter'); // 'today', 'week', 'month', 'past', 'future', 'all'
             $viewMode = $request->input('view_mode', 'input'); // 'input' hoặc 'view', mặc định là 'input'
 
             if (!$consultantId) {
@@ -2296,32 +2709,83 @@ class AuthController extends Controller
             
             $query = LichTuVan::with($withRelations)->byConsultant($consultantId);
 
-            // Ở chế độ "Nhập ghi chú", chỉ hiển thị các lịch đã có thí sinh đặt với tình trạng "Đã đặt lịch"
+            // Debug: Kiểm tra số lượng session trước khi filter
+            $totalSessions = LichTuVan::byConsultant($consultantId)->count();
+            $sessionsWithStudent = LichTuVan::byConsultant($consultantId)->whereNotNull('idnguoidat')->count();
+            $sessionsApproved = LichTuVan::byConsultant($consultantId)->where('duyetlich', 2)->count();
+            $sessionsCompleted = LichTuVan::byConsultant($consultantId)->completed()->count();
+            $sessionsAllConditions = LichTuVan::byConsultant($consultantId)
+                ->whereNotNull('idnguoidat')
+                ->where('duyetlich', 2)
+                ->completed()
+                ->count();
+            
+            // Debug: Lấy một vài session mẫu để xem dữ liệu
+            $sampleSessions = LichTuVan::byConsultant($consultantId)
+                ->take(5)
+                ->get()
+                ->map(function($s) {
+                    return [
+                        'id' => $s->idlichtuvan,
+                        'ngayhen' => $s->ngayhen,
+                        'ketthuc' => $s->ketthuc,
+                        'duyetlich' => $s->duyetlich,
+                        'idnguoidat' => $s->idnguoidat,
+                        'tinhtrang' => $s->tinhtrang,
+                    ];
+                });
+            
+            \Log::info('Debug session counts', [
+                'consultant_id' => $consultantId,
+                'total_sessions' => $totalSessions,
+                'sessions_with_student' => $sessionsWithStudent,
+                'sessions_approved' => $sessionsApproved,
+                'sessions_completed' => $sessionsCompleted,
+                'sessions_all_conditions' => $sessionsAllConditions,
+                'today' => Carbon::today()->toDateString(),
+                'now_time' => Carbon::now()->format('H:i:s'),
+                'sample_sessions' => $sampleSessions->toArray(),
+            ]);
+
+            // Ở chế độ "Nhập ghi chú", chỉ hiển thị các lịch đã tư vấn (đã kết thúc)
+            // để người tư vấn viên có thể nhập minh chứng và ghi chú
+            // Lưu ý: tinhtrang có thể vẫn là 'Đã đặt lịch' ngay cả khi đã kết thúc,
+            // nên chỉ kiểm tra thời gian thực tế, không dựa vào tinhtrang
             if ($viewMode === 'input') {
                 $query->whereNotNull('idnguoidat') // Đã có thí sinh đặt lịch
-                      ->where('tinhtrang', 'Đã đặt lịch') // Tình trạng là "Đã đặt lịch"
-                      ->where('duyetlich', 2); // Chỉ hiển thị buổi đã duyệt để nhập ghi chú
+                      ->where('duyetlich', 2) // Chỉ hiển thị buổi đã duyệt
+                      ->completed(); // Sử dụng scope completed() để lọc lịch đã kết thúc
+                
+                \Log::info('Filter for input mode applied', [
+                    'consultant_id' => $consultantId,
+                    'today' => Carbon::today()->toDateString(),
+                    'now_time' => Carbon::now()->format('H:i:s'),
+                    'sql_query' => $query->toSql(),
+                    'bindings' => $query->getBindings(),
+                ]);
             }
 
-            // Filter theo thời gian (chỉ áp dụng nếu có chọn filter)
-            // Ở chế độ "view", có thể hiển thị tất cả thời gian nếu không chọn filter
+            // Filter theo thời gian - Áp dụng sau filter completed() nếu ở chế độ input
+            // Lưu ý: Ở chế độ input, chỉ nên filter "past", "today", "week", "month" vì đã filter completed()
+            // Filter "future" sẽ không có kết quả vì đã filter completed()
             if ($dateFilter === 'today') {
                 $query->where('ngayhen', Carbon::today());
-            } elseif ($dateFilter === '7days') {
-                $query->where('ngayhen', '>=', Carbon::today())
-                      ->where('ngayhen', '<=', Carbon::today()->addDays(7));
+            } elseif ($dateFilter === 'week') {
+                $query->thisWeek();
             } elseif ($dateFilter === 'month') {
-                $query->whereMonth('ngayhen', Carbon::now()->month)
-                      ->whereYear('ngayhen', Carbon::now()->year);
+                $query->thisMonth();
+            } elseif ($dateFilter === 'past') {
+                // Lịch đã qua (ngày < hôm nay) - phù hợp với completed()
+                $query->past();
+            } elseif ($dateFilter === 'future') {
+                // Lịch sắp tới - ở chế độ input sẽ không có kết quả vì đã filter completed()
+                // Nhưng vẫn áp dụng để không bỏ qua filter
+                if ($viewMode !== 'input') {
+                    $query->future();
+                }
+                // Ở chế độ input, filter future sẽ không match với completed() nên sẽ trả về rỗng
             }
-            // Nếu dateFilter là empty hoặc 'all', không filter theo thời gian (hiển thị tất cả)
-
-            // Filter chỉ lọc ngày hôm nay và các ngày chưa hết hạn (ngày >= hôm nay)
-            // Chỉ áp dụng ở chế độ "input" (Nhập ghi chú)
-            // Ở chế độ "view" (Xem ghi chú đã gửi), hiển thị tất cả ghi chú, kể cả quá khứ
-            if ($filterUpcoming && $viewMode === 'input') {
-                $query->where('ngayhen', '>=', Carbon::today());
-            }
+            // Nếu dateFilter là empty hoặc 'all', không filter theo thời gian (hiển thị tất cả lịch đã completed)
 
             $sessions = $query->orderBy('ngayhen', 'desc')
                              ->orderBy('giobatdau', 'desc')
@@ -2330,7 +2794,19 @@ class AuthController extends Controller
             \Log::info('Sessions found before mapping', [
                 'count' => $sessions->count(),
                 'view_mode' => $viewMode,
-                'session_ids' => $sessions->pluck('idlichtuvan')->toArray()
+                'date_filter' => $dateFilter,
+                'consultant_id' => $consultantId,
+                'session_ids' => $sessions->pluck('idlichtuvan')->toArray(),
+                'session_details' => $sessions->map(function($s) {
+                    return [
+                        'id' => $s->idlichtuvan,
+                        'ngayhen' => $s->ngayhen,
+                        'ketthuc' => $s->ketthuc,
+                        'duyetlich' => $s->duyetlich,
+                        'tinhtrang' => $s->tinhtrang,
+                        'idnguoidat' => $s->idnguoidat,
+                    ];
+                })->toArray()
             ]);
 
             $data = $sessions->map(function($session) use ($viewMode) {
@@ -2495,24 +2971,59 @@ class AuthController extends Controller
                 // 1. Các session chỉ có ghi chú NHAP (chưa có chốt)
                 // 2. Các session có ghi chú CHOT nhưng quá thời hạn sửa (can_edit = false)
                 // 3. Các session quá thời hạn nhập ghi chú (can_add_note = false) khi chưa có ghi chú
-                $data = $data->filter(function($session) {
+                $beforeFilterCount = $data->count();
+                $removedReasons = [];
+                
+                $data = $data->filter(function($session) use (&$removedReasons) {
+                    $sessionId = $session['id'] ?? 'unknown';
+                    
                     // Nếu chỉ có ghi_chu_nhap mà không có ghi_chu_chot → loại bỏ (chỉ có nháp)
                     if (!empty($session['ghi_chu_nhap']) && empty($session['ghi_chu_chot'])) {
+                        $removedReasons[] = ['session_id' => $sessionId, 'reason' => 'Only has NHAP, no CHOT'];
+                        \Log::debug('Filtering out session (only NHAP)', ['session_id' => $sessionId]);
                         return false;
                     }
                     
                     // Nếu có ghi_chu_chot nhưng can_edit = false → loại bỏ (quá thời hạn sửa)
                     if (!empty($session['ghi_chu_chot']) && $session['can_edit'] === false) {
+                        $removedReasons[] = ['session_id' => $sessionId, 'reason' => 'Has CHOT but can_edit = false'];
+                        \Log::debug('Filtering out session (CHOT but cannot edit)', [
+                            'session_id' => $sessionId,
+                            'can_edit' => $session['can_edit']
+                        ]);
                         return false;
                     }
                     
-                    // Nếu chưa có ghi chú nào (không có cả nháp và chốt) nhưng can_add_note = false → loại bỏ (quá thời hạn nhập)
+                    // Nếu chưa có ghi chú nào (không có cả nháp và chốt) nhưng can_add_note = false
+                    // Lưu ý: Vì đã filter completed() ở query level, các session này đã kết thúc
+                    // Nên cho phép nhập ghi chú bất kể thời gian (đã nới lỏng điều kiện)
+                    // Chỉ loại bỏ nếu quá thời hạn quá lâu (ví dụ: quá 7 ngày)
                     if (empty($session['ghi_chu_nhap']) && empty($session['ghi_chu_chot']) && $session['can_add_note'] === false) {
-                        return false;
+                        // Kiểm tra xem có quá lâu không (ví dụ: quá 7 ngày sau giờ kết thúc)
+                        // Nếu quá lâu thì mới loại bỏ, còn không thì vẫn cho phép nhập
+                        // Tạm thời: Cho phép tất cả session đã kết thúc nhập ghi chú
+                        // TODO: Có thể thêm điều kiện thời gian tối đa nếu cần
+                        // return false;
                     }
+                    
+                    \Log::debug('Session passed filter', [
+                        'session_id' => $sessionId,
+                        'has_ghi_chu_nhap' => !empty($session['ghi_chu_nhap']),
+                        'has_ghi_chu_chot' => !empty($session['ghi_chu_chot']),
+                        'can_edit' => $session['can_edit'],
+                        'can_add_note' => $session['can_add_note']
+                    ]);
                     
                     return true;
                 });
+                
+                \Log::info('Filtered for input mode', [
+                    'before_filter' => $beforeFilterCount,
+                    'after_filter' => $data->count(),
+                    'removed_count' => $beforeFilterCount - $data->count(),
+                    'removed_reasons' => $removedReasons,
+                    'remaining_session_ids' => $data->pluck('id')->toArray()
+                ]);
             } elseif ($viewMode === 'view') {
                 // Ở chế độ "Xem ghi chú đã gửi", hiển thị TẤT CẢ các session có ghi chú (NHAP hoặc CHOT)
                 // Không phân biệt CHOT hay NHAP, chỉ cần có ghi chú là hiển thị
@@ -2554,9 +3065,25 @@ class AuthController extends Controller
                 'session_ids' => $data->pluck('id')->toArray()
             ]);
 
+            // Thêm debug info vào response (chỉ trong development)
+            $debugInfo = null;
+            if (config('app.debug')) {
+                $debugInfo = [
+                    'total_sessions' => $totalSessions,
+                    'sessions_with_student' => $sessionsWithStudent,
+                    'sessions_approved' => $sessionsApproved,
+                    'sessions_completed' => $sessionsCompleted,
+                    'sessions_all_conditions' => $sessionsAllConditions,
+                    'sessions_after_query' => $sessions->count(),
+                    'sessions_after_mapping' => $data->count(),
+                    'sample_sessions' => $sampleSessions->toArray(),
+                ];
+            }
+
             return response()->json([
                 'success' => true,
-                'data' => $data->values() // Reset keys sau khi filter
+                'data' => $data->values(), // Reset keys sau khi filter
+                'debug' => $debugInfo // Thêm debug info nếu ở chế độ debug
             ]);
 
         } catch (\Exception $e) {
@@ -2594,6 +3121,31 @@ class AuthController extends Controller
                 ->first();
             
             $ghiChuNhap = $session->ghiChu->where('trang_thai', 'NHAP')->first();
+            
+            // Format ghi chú để đảm bảo có đầy đủ các trường
+            // Lưu ý: tom_tat được lưu trong session->nhanxet, không phải trong ghi_chu_buoituvan
+            $formatGhiChu = function($ghiChu, $sessionNhanxet = null) {
+                if (!$ghiChu) return null;
+                return [
+                    'id' => $ghiChu->id_ghichu,
+                    'id_lichtuvan' => $ghiChu->id_lichtuvan,
+                    'id_tuvanvien' => $ghiChu->id_tuvanvien,
+                    'noi_dung' => $ghiChu->noi_dung,
+                    'ket_luan_nganh' => $ghiChu->ket_luan_nganh,
+                    'muc_quan_tam' => $ghiChu->muc_quan_tam,
+                    'diem_du_kien' => $ghiChu->diem_du_kien,
+                    'yeu_cau_bo_sung' => $ghiChu->yeu_cau_bo_sung,
+                    'chia_se_voi_thisinh' => $ghiChu->chia_se_voi_thisinh,
+                    'trang_thai' => $ghiChu->trang_thai,
+                    'thoi_han_sua_den' => $ghiChu->thoi_han_sua_den ? $ghiChu->thoi_han_sua_den->format('Y-m-d H:i:s') : null,
+                    'tom_tat' => $sessionNhanxet, // Lấy từ session->nhanxet
+                    'created_at' => $ghiChu->created_at ? $ghiChu->created_at->format('Y-m-d H:i:s') : null,
+                    'updated_at' => $ghiChu->updated_at ? $ghiChu->updated_at->format('Y-m-d H:i:s') : null,
+                ];
+            };
+            
+            $ghiChuChotFormatted = $formatGhiChu($ghiChuChot, $session->nhanxet);
+            $ghiChuNhapFormatted = $formatGhiChu($ghiChuNhap, $session->nhanxet);
 
             // Format date/time an toàn
             $ngayhen = null;
@@ -2646,8 +3198,8 @@ class AuthController extends Controller
                         'thisinhten' => $session->nguoiDat ? $session->nguoiDat->hoten : null,
                         'danhdanhgiadem' => $session->danhdanhgiadem,
                     ],
-                    'ghi_chu_chot' => $ghiChuChot,
-                    'ghi_chu_nhap' => $ghiChuNhap,
+                    'ghi_chu_chot' => $ghiChuChotFormatted,
+                    'ghi_chu_nhap' => $ghiChuNhapFormatted,
                     'minh_chung' => $session->tepMinhChung->map(function($file) {
                         return [
                             'id_file' => $file->id_file,

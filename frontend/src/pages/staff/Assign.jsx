@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import api from "../../services/api";
 
 function Modal({ open, onClose, children }) {
@@ -55,6 +56,8 @@ function overlaps(aStart, aEnd, bStart, bEnd) {
 }
 
 export default function StaffAssign() {
+  const navigate = useNavigate();
+  
   // Reference data from API
   const [groups, setGroups] = useState([]);
   const [groupsLoading, setGroupsLoading] = useState(false);
@@ -191,7 +194,6 @@ export default function StaffAssign() {
         const byId = new Map();
         normalized.forEach((it) => { if (!byId.has(it.id)) byId.set(it.id, it); });
         const unique = Array.from(byId.values());
-        console.log('Loaded slots:', unique);
         if (mounted) setSlots(unique);
       } catch (e) {
         console.error('Error fetching consultation schedules:', e);
@@ -671,8 +673,30 @@ export default function StaffAssign() {
 
       {/* Filter Bar - Redesigned with responsive grid */}
       <div className="bg-white rounded-2xl shadow-[0_1px_2px_rgba(0,0,0,0.04),0_8px_24px_rgba(0,0,0,0.06)] border border-gray-200 p-4">
-        {/* Row 1: Time & Group Filters */}
+        {/* Row 1: Tìm kiếm → Thời gian (Năm → Quý → Tháng) và Đối tượng (Nhóm ngành → Tư vấn viên) */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+          {/* Tìm kiếm - Đặt đầu tiên */}
+          <div>
+            <label className="block text-[12px] text-gray-600 mb-1">Tìm kiếm</label>
+            <input
+              placeholder="Tìm theo tên TVV, nhóm ngành..."
+              value={filter.search}
+              onChange={(e) => setFilter((f) => ({ ...f, search: e.target.value }))}
+              className="w-full h-10 border border-gray-300 rounded-lg px-3 text-[14px] focus:ring-2 focus:ring-brand-100 focus:border-[var(--brand-600)]"
+            />
+          </div>
+
+          {/* Năm */}
+          <div>
+            <label className="block text-[12px] text-gray-600 mb-1">Năm</label>
+            <input
+              type="number"
+              value={filter.year}
+              onChange={(e) => setFilter((f) => ({ ...f, year: e.target.value }))}
+              className="w-full h-10 border border-gray-300 rounded-lg px-3 text-[14px] focus:ring-2 focus:ring-brand-100 focus:border-[var(--brand-600)]"
+            />
+          </div>
+
           {/* Quý */}
           <div>
             <label className="block text-[12px] text-gray-600 mb-1">Quý</label>
@@ -718,17 +742,6 @@ export default function StaffAssign() {
                 ));
               })()}
             </select>
-          </div>
-          
-          {/* Năm */}
-          <div>
-            <label className="block text-[12px] text-gray-600 mb-1">Năm</label>
-            <input
-              type="number"
-              value={filter.year}
-              onChange={(e) => setFilter((f) => ({ ...f, year: e.target.value }))}
-              className="w-full h-10 border border-gray-300 rounded-lg px-3 text-[14px] focus:ring-2 focus:ring-brand-100 focus:border-[var(--brand-600)]"
-            />
           </div>
           
           {/* Nhóm ngành */}
@@ -784,34 +797,9 @@ export default function StaffAssign() {
               ))}
             </select>
           </div>
-          
-          {/* Nút Chế độ xem + Làm mới */}
-          <div className="flex items-end">
-            <div className="flex gap-2 w-full justify-end">
-              <button
-                onClick={() => setFilter((f) => ({ ...f, view: "list" }))}
-                className={`h-10 px-4 rounded-lg text-[14px] font-medium transition-colors ${filter.view === "list" ? "bg-[var(--brand-600)] text-white shadow-md" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
-              >
-                📋 Danh sách
-              </button>
-              <button
-                onClick={() => setFilter((f) => ({ ...f, view: "calendar" }))}
-                className={`h-10 px-4 rounded-lg text-[14px] font-medium transition-colors ${filter.view === "calendar" ? "bg-[var(--brand-600)] text-white shadow-md" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
-              >
-                📅 Lịch
-              </button>
-              <button
-                onClick={() => window.location.reload()}
-                className="h-10 px-4 rounded-lg text-[14px] font-medium bg-gray-100 text-gray-700 hover:bg-gray-200"
-                title="Làm mới dữ liệu"
-              >
-                🔄
-              </button>
-            </div>
-          </div>
         </div>
         
-        {/* Row 2: Status, Method, Search & Checkbox */}
+        {/* Row 2: Thuộc tính (Trạng thái → Hình thức) → Checkbox */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mt-3">
           {/* Trạng thái */}
           <div>
@@ -859,17 +847,6 @@ export default function StaffAssign() {
             </select>
           </div>
           
-          {/* Tìm kiếm */}
-          <div>
-            <label className="block text-[12px] text-gray-600 mb-1">Tìm kiếm</label>
-            <input
-              placeholder="Tìm theo tên TVV, nhóm ngành..."
-              value={filter.search}
-              onChange={(e) => setFilter((f) => ({ ...f, search: e.target.value }))}
-              className="w-full h-10 border border-gray-300 rounded-lg px-3 text-[14px] focus:ring-2 focus:ring-brand-100 focus:border-[var(--brand-600)]"
-            />
-          </div>
-          
           {/* Checkbox */}
           <div className="flex items-end">
             <div className="flex items-center space-x-2 h-10">
@@ -883,6 +860,57 @@ export default function StaffAssign() {
               <label htmlFor="onlyValid" className="text-[14px] font-medium text-gray-700">Chỉ hiển thị còn hiệu lực</label>
             </div>
           </div>
+        </div>
+
+        {/* Row 3: Nút Chế độ xem + Làm mới + Đăng ký lịch */}
+        <div className="flex items-center justify-start gap-2 mt-3">
+          <button
+            onClick={() => setFilter((f) => ({ ...f, view: "list" }))}
+            className={`h-10 px-4 rounded-lg text-[14px] font-medium transition-colors ${filter.view === "list" ? "bg-[var(--brand-600)] text-white shadow-md" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+          >
+            📋 Danh sách
+          </button>
+          <button
+            onClick={() => setFilter((f) => ({ ...f, view: "calendar" }))}
+            className={`h-10 px-4 rounded-lg text-[14px] font-medium transition-colors ${filter.view === "calendar" ? "bg-[var(--brand-600)] text-white shadow-md" : "bg-gray-100 text-gray-700 hover:bg-gray-200"}`}
+          >
+            📅 Lịch
+          </button>
+          <button
+            onClick={() => window.location.reload()}
+            className="h-10 px-4 rounded-lg text-[14px] font-medium bg-gray-100 text-gray-700 hover:bg-gray-200"
+            title="Làm mới dữ liệu"
+          >
+            🔄
+          </button>
+          <button
+            onClick={async () => {
+              if (!confirm('Bạn có chắc chắn muốn mở đăng ký lịch cho tất cả tư vấn viên? Thông báo sẽ được gửi đến tất cả tư vấn viên.')) {
+                return;
+              }
+              try {
+                setBulkLoading(true);
+                const response = await api.openScheduleRegistration();
+                if (response.success) {
+                  setToast({ 
+                    type: "success", 
+                    msg: `✅ Đã mở đăng ký lịch đến ngày ${response.data.endDateFormatted} và gửi thông báo cho ${response.data.recipientCount} tư vấn viên` 
+                  });
+                } else {
+                  setToast({ type: "error", msg: `❌ ${response.message || 'Lỗi khi mở đăng ký lịch'}` });
+                }
+              } catch (error) {
+                setToast({ type: "error", msg: `❌ Lỗi: ${error.message}` });
+              } finally {
+                setBulkLoading(false);
+              }
+            }}
+            disabled={bulkLoading}
+            className="h-10 px-4 rounded-lg text-[14px] font-medium bg-indigo-600 text-white hover:bg-indigo-700 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+            title="Mở đăng ký lịch cho tất cả tư vấn viên"
+          >
+            {bulkLoading ? "⏳ Đang xử lý..." : "➕ Mở đăng ký lịch"}
+          </button>
         </div>
       </div>
 

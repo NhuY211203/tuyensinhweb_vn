@@ -99,6 +99,84 @@ class LichTuVan extends Model
         return $query->where('trangthai', '2'); // 2 = đã đặt
     }
 
+    // Lịch đã được duyệt bởi staff
+    public function scopeApproved($query)
+    {
+        return $query->where('duyetlich', 2);
+    }
+
+    // Lịch thuộc về người dùng đã đặt
+    public function scopeForUser($query, $userId)
+    {
+        return $query->where('idnguoidat', $userId);
+    }
+
+    // Lịch đã hoàn thành (đã qua thời điểm kết thúc)
+    public function scopeCompleted($query)
+    {
+        return $query->where(function($q) {
+            $q->where('ngayhen', '<', Carbon::today()->toDateString())
+              ->orWhere(function($q2) {
+                  $q2->where('ngayhen', Carbon::today()->toDateString())
+                     ->where('ketthuc', '<=', Carbon::now()->format('H:i:s'));
+              });
+        });
+    }
+
+    // Lịch sắp tới hoặc đang diễn ra
+    public function scopeUpcomingOrOngoing($query)
+    {
+        return $query->where(function($q) {
+            $q->where('ngayhen', '>', Carbon::today()->toDateString())
+              ->orWhere(function($q2) {
+                  $q2->where('ngayhen', Carbon::today()->toDateString())
+                     ->where('ketthuc', '>', Carbon::now()->format('H:i:s'));
+              });
+        });
+    }
+
+    // Lịch trong tuần này
+    public function scopeThisWeek($query)
+    {
+        $startOfWeek = Carbon::now()->startOfWeek();
+        $endOfWeek = Carbon::now()->endOfWeek();
+        return $query->whereBetween('ngayhen', [$startOfWeek, $endOfWeek]);
+    }
+
+    // Lịch trong tháng này
+    public function scopeThisMonth($query)
+    {
+        return $query->whereMonth('ngayhen', Carbon::now()->month)
+                     ->whereYear('ngayhen', Carbon::now()->year);
+    }
+
+    // Lịch đã qua (ngày < hôm nay)
+    public function scopePast($query)
+    {
+        return $query->where('ngayhen', '<', Carbon::today());
+    }
+
+    // Lịch sắp tới (ngày >= hôm nay)
+    public function scopeFuture($query)
+    {
+        return $query->where('ngayhen', '>=', Carbon::today());
+    }
+
+    // Lọc theo khoảng ngày (bao gồm cả 2 đầu)
+    public function scopeBetweenDates($query, $startDate = null, $endDate = null)
+    {
+        if ($startDate && $endDate) {
+            return $query->whereBetween('ngayhen', [Carbon::parse($startDate)->startOfDay(), Carbon::parse($endDate)->endOfDay()]);
+        }
+        if ($startDate) {
+            return $query->where('ngayhen', '>=', Carbon::parse($startDate)->startOfDay());
+        }
+        if ($endDate) {
+            return $query->where('ngayhen', '<=', Carbon::parse($endDate)->endOfDay());
+        }
+        return $query;
+    }
+
     // Accessors
     public function getTimeSlotAttribute()
     {

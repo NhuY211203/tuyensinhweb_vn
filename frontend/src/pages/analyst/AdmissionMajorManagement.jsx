@@ -77,15 +77,8 @@ export default function AdmissionMajorManagement() {
       if (idtruong) params.append('idtruong', idtruong);
       if (manganh) params.append('manganh', manganh);
       
-      console.log('Loading with params:', { page, keyword, idtruong, manganh });
-      console.log('URL:', `http://localhost:8000/api/admin/nganh-truong?${params}`);
-      
       const response = await fetch(`http://localhost:8000/api/admin/nganh-truong?${params}`);
       const data = await response.json();
-      
-      console.log('API Response:', data);
-      console.log('Data items:', data.data);
-      console.log('Pagination:', data.pagination);
       
       if (data.success) {
         setAdmissionMajors(data.data || []);

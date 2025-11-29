@@ -27,7 +27,32 @@ export default function ConsultationSchedules() {
   const [notesData, setNotesData] = useState(null);
   const [evidenceData, setEvidenceData] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  const [requestingUpdate, setRequestingUpdate] = useState({}); // Track which schedule is being requested
+  
+  // Load requested schedules from localStorage on mount
+  const [requestedSchedules, setRequestedSchedules] = useState(() => {
+    try {
+      const saved = localStorage.getItem('requestedSchedules');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        return new Set(parsed);
+      }
+    } catch (e) {
+      console.error('Error loading requested schedules from localStorage:', e);
+    }
+    return new Set();
+  });
+  
   const toast = useToast();
+  
+  // Save requested schedules to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('requestedSchedules', JSON.stringify(Array.from(requestedSchedules)));
+    } catch (e) {
+      console.error('Error saving requested schedules to localStorage:', e);
+    }
+  }, [requestedSchedules]);
 
   // Filters
   const [filters, setFilters] = useState({
@@ -162,6 +187,172 @@ export default function ConsultationSchedules() {
     return scheduleDate < today;
   };
 
+  const requestUpdateNotes = async (schedule) => {
+    console.log('🔔 ===== REQUEST UPDATE NOTES CALLED =====');
+    console.log('🔔 Schedule object:', schedule);
+    
+    // Lấy ID tư vấn viên từ nhiều nguồn có thể
+    // Ưu tiên: idnguoidung của schedule (consultant tạo lịch) > nguoiDung.idnguoidung > các field khác
+    const consultantId = schedule.idnguoidung ||  // ID của consultant tạo lịch
+                         schedule.consultant_id ||
+                         schedule.nguoiDung?.idnguoidung || 
+                         schedule.nguoiDung?.id || 
+                         schedule.consultantId;
+    
+    console.log('🔔 Request update notes - Schedule:', schedule);
+    console.log('🔔 Schedule.idnguoidung:', schedule.idnguoidung);
+    console.log('🔔 Schedule.consultant_id:', schedule.consultant_id);
+    console.log('🔔 Schedule.nguoiDung:', schedule.nguoiDung);
+    console.log('🔔 Consultant ID extracted:', consultantId);
+    
+    if (!consultantId) {
+      console.error('❌ No consultant ID found in schedule:', schedule);
+      toast.push({ type: "error", title: "Không tìm thấy thông tin tư vấn viên" });
+      setRequestingUpdate(prev => ({ ...prev, [schedule.idlichtuvan]: false }));
+      return;
+    }
+    
+    console.log('🔔 Consultant ID is valid:', consultantId);
+    const scheduleDate = schedule.ngayhen 
+      ? new Date(schedule.ngayhen).toLocaleDateString("vi-VN")
+      : "ngày chưa xác định";
+    const scheduleTime = schedule.giobatdau && schedule.ketthuc
+      ? `${schedule.giobatdau} - ${schedule.ketthuc}`
+      : "";
+
+    console.log('🔔 Setting requesting state to true');
+    setRequestingUpdate(prev => ({ ...prev, [schedule.idlichtuvan]: true }));
+
+    try {
+      console.log('🔔 Starting notification send process...');
+      
+      // Lấy user ID từ nhiều nguồn
+      let currentUserId = localStorage.getItem("userId");
+      console.log('🔔 Current user ID from localStorage (userId):', currentUserId);
+      
+      if (!currentUserId) {
+        const userStr = localStorage.getItem("user");
+        console.log('🔔 User string from localStorage:', userStr);
+        if (userStr) {
+          try {
+            const user = JSON.parse(userStr);
+            currentUserId = user.idnguoidung || user.id || null;
+            console.log('🔔 Current user ID from user object:', currentUserId);
+          } catch (e) {
+            console.error("Error parsing user object:", e);
+          }
+        }
+      }
+      
+      const token = localStorage.getItem("token");
+      console.log('🔔 Token exists:', !!token);
+      
+      const headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+      };
+      
+      // Thêm Authorization header nếu có token
+      if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+        console.log('🔔 Token added to headers');
+      } else {
+        console.log('⚠️ No token found, but proceeding without token (backend may use user_id from body)');
+      }
+      
+      const consultantIdInt = parseInt(consultantId);
+      if (isNaN(consultantIdInt)) {
+        console.error('❌ Invalid consultant ID:', consultantId);
+        toast.push({ type: "error", title: "ID tư vấn viên không hợp lệ" });
+        setRequestingUpdate(prev => ({ ...prev, [schedule.idlichtuvan]: false }));
+        return;
+      }
+      
+      const requestBody = {
+        title: "Yêu cầu cập nhật ghi chú buổi tư vấn",
+        body: `Bạn được yêu cầu cập nhật ghi chú và minh chứng cho buổi tư vấn vào ${scheduleDate}${scheduleTime ? ` (${scheduleTime})` : ""}. Vui lòng truy cập trang quản lý lịch tư vấn để cập nhật.`,
+        recipients: {
+          allUsers: false,
+          roles: [],
+          userIds: [consultantIdInt]
+        }
+      };
+      
+      // Thêm user_id vào body nếu có
+      if (currentUserId) {
+        requestBody.user_id = parseInt(currentUserId);
+      }
+      
+      console.log('🔔 Sending notification request:', {
+        url: "http://localhost:8000/api/notifications/send",
+        method: "POST",
+        headers: headers,
+        body: requestBody
+      });
+      
+      const response = await fetch("http://localhost:8000/api/notifications/send", {
+        method: "POST",
+        headers: headers,
+        body: JSON.stringify(requestBody)
+      });
+      
+      console.log('🔔 Notification response status:', response.status);
+      console.log('🔔 Notification response headers:', Object.fromEntries(response.headers.entries()));
+      
+      // Kiểm tra status code trước khi parse JSON
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('❌ HTTP Error:', response.status, errorText);
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch (e) {
+          errorData = { message: errorText };
+        }
+        toast.push({ 
+          type: "error", 
+          title: `Lỗi ${response.status}: ${errorData.message || "Không thể gửi thông báo"}`,
+          message: errorData.errors ? JSON.stringify(errorData.errors) : undefined
+        });
+        setRequestingUpdate(prev => ({ ...prev, [schedule.idlichtuvan]: false }));
+        return;
+      }
+      
+      const data = await response.json();
+      console.log('🔔 Notification response data:', data);
+
+      if (data.success) {
+        console.log('✅ Notification sent successfully to consultant:', consultantIdInt);
+        console.log('✅ Notification ID:', data.data?.id);
+        console.log('✅ Recipient count:', data.data?.recipientCount);
+        if (!data.data?.id) {
+          console.warn('⚠️ Warning: Notification created but no ID returned');
+        }
+        
+        // Đánh dấu schedule này đã được yêu cầu cập nhật
+        setRequestedSchedules(prev => new Set([...prev, schedule.idlichtuvan]));
+        
+        toast.push({ 
+          type: "success", 
+          title: `Đã gửi yêu cầu cập nhật ghi chú đến tư vấn viên (ID: ${consultantIdInt})` 
+        });
+      } else {
+        console.error('❌ Failed to send notification:', data);
+        console.error('❌ Error details:', data.errors || data.message);
+        toast.push({ 
+          type: "error", 
+          title: data.message || "Không thể gửi thông báo",
+          message: data.errors ? JSON.stringify(data.errors) : undefined
+        });
+      }
+    } catch (err) {
+      console.error("Error sending notification:", err);
+      toast.push({ type: "error", title: "Lỗi kết nối khi gửi thông báo" });
+    } finally {
+      setRequestingUpdate(prev => ({ ...prev, [schedule.idlichtuvan]: false }));
+    }
+  };
+
   const openDetail = async (schedule) => {
     setCurrentSchedule(schedule);
     setNotesData(null);
@@ -180,6 +371,21 @@ export default function ConsultationSchedules() {
       const evidenceResult = await evidenceResponse.json();
 
       if (notesResult.success) {
+        console.log('📋 Notes data received:', notesResult.data);
+        console.log('📋 Has ghi_chu_nhap:', !!notesResult.data?.ghi_chu_nhap);
+        console.log('📋 Has ghi_chu_chot:', !!notesResult.data?.ghi_chu_chot);
+        if (notesResult.data?.ghi_chu_nhap) {
+          console.log('📋 ghi_chu_nhap data:', {
+            noi_dung: notesResult.data.ghi_chu_nhap.noi_dung,
+            ket_luan_nganh: notesResult.data.ghi_chu_nhap.ket_luan_nganh,
+            muc_quan_tam: notesResult.data.ghi_chu_nhap.muc_quan_tam,
+            diem_du_kien: notesResult.data.ghi_chu_nhap.diem_du_kien,
+            trang_thai: notesResult.data.ghi_chu_nhap.trang_thai,
+            yeu_cau_bo_sung: notesResult.data.ghi_chu_nhap.yeu_cau_bo_sung,
+            tom_tat: notesResult.data.ghi_chu_nhap.tom_tat,
+            chia_se_voi_thisinh: notesResult.data.ghi_chu_nhap.chia_se_voi_thisinh,
+          });
+        }
         setNotesData(notesResult.data);
       } else {
         toast.push({ type: "error", title: notesResult.message || "Không thể tải ghi chú" });
@@ -425,14 +631,40 @@ export default function ConsultationSchedules() {
                             schedule.hasGhiChu || schedule.hasMinhChung ? (
                               <button
                                 onClick={() => openDetail(schedule)}
-                                className="px-3 py-1.5 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors"
+                                className="inline-flex items-center justify-center px-4 py-2 bg-blue-600 text-white text-sm font-medium rounded-md hover:bg-blue-700 active:bg-blue-800 transition-all duration-200 shadow-sm hover:shadow"
                               >
                                 Xem chi tiết
                               </button>
+                            ) : requestedSchedules.has(schedule.idlichtuvan) ? (
+                              <div className="inline-flex items-center gap-1.5 px-4 py-2 bg-amber-50 text-amber-700 text-sm font-medium rounded-md border border-amber-200 shadow-sm">
+                                <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                                <span>Chờ phản hồi</span>
+                              </div>
                             ) : (
-                              <span className="text-sm text-gray-500 italic">
-                                Tư vấn viên chưa cập nhật
-                              </span>
+                              <button
+                                onClick={() => requestUpdateNotes(schedule)}
+                                disabled={requestingUpdate[schedule.idlichtuvan]}
+                                className="inline-flex items-center justify-center gap-1.5 px-4 py-2 bg-orange-600 text-white text-sm font-medium rounded-md hover:bg-orange-700 active:bg-orange-800 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-orange-600 shadow-sm hover:shadow"
+                              >
+                                {requestingUpdate[schedule.idlichtuvan] ? (
+                                  <>
+                                    <svg className="animate-spin h-4 w-4 flex-shrink-0" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                    </svg>
+                                    <span>Đang gửi...</span>
+                                  </>
+                                ) : (
+                                  <>
+                                    <svg className="w-4 h-4 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                                    </svg>
+                                    <span>Yêu cầu cập nhật</span>
+                                  </>
+                                )}
+                              </button>
                             )
                           ) : (
                             <span className="text-sm text-gray-400">-</span>
@@ -487,74 +719,138 @@ export default function ConsultationSchedules() {
           <div className="space-y-6">
             <h2 className="text-xl font-bold">Chi tiết buổi tư vấn</h2>
 
+            {/* Thông tin session */}
+            {currentSchedule && (
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5 mb-4">
+                <div className="flex justify-between items-start mb-3">
+                  <div>
+                    <h3 className="text-lg font-semibold">
+                      {currentSchedule.ngayhen
+                        ? new Date(currentSchedule.ngayhen).toLocaleDateString('vi-VN', { 
+                            weekday: 'long', 
+                            year: 'numeric', 
+                            month: 'long', 
+                            day: 'numeric' 
+                          })
+                        : 'Chưa có ngày'} — {currentSchedule.nguoiDat?.hoten || 'Chưa có thí sinh'}
+                    </h3>
+                  </div>
+                  <div className="flex gap-2 items-center">
+                    {currentSchedule.tinhtrang && (
+                      <span className={`px-3 py-1 rounded-full text-xs ${
+                        currentSchedule.tinhtrang === 'Đã đặt lịch' ? 'bg-blue-100 text-blue-800' :
+                        currentSchedule.tinhtrang === 'Chờ xử lý' ? 'bg-yellow-100 text-yellow-800' :
+                        currentSchedule.tinhtrang === 'Đã kết thúc' ? 'bg-green-100 text-green-800' :
+                        'bg-gray-100 text-gray-800'
+                      }`}>
+                        {currentSchedule.tinhtrang}
+                      </span>
+                    )}
+                    {currentSchedule.duyetlich && (
+                      <span className={`px-3 py-1 rounded-full text-xs ${getDuyetLichColor(currentSchedule.duyetlich)}`}>
+                        {getDuyetLichText(currentSchedule.duyetlich)}
+                      </span>
+                    )}
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {currentSchedule.chudetuvan && (
+                    <span className="px-2 py-1 bg-gray-100 rounded text-sm">
+                      {currentSchedule.chudetuvan}
+                    </span>
+                  )}
+                  {currentSchedule.molavande && (
+                    <span className="px-2 py-1 bg-gray-100 rounded text-sm">
+                      {currentSchedule.molavande}
+                    </span>
+                  )}
+                  {currentSchedule.giobatdau && currentSchedule.ketthuc && (
+                    <span className="px-2 py-1 bg-gray-100 rounded text-sm">
+                      {currentSchedule.giobatdau} - {currentSchedule.ketthuc}
+                    </span>
+                  )}
+                  {currentSchedule.danhdanhgiadem && (
+                    <a
+                      href={currentSchedule.danhdanhgiadem}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-2 py-1 bg-blue-50 text-blue-600 rounded text-sm hover:underline"
+                    >
+                      Phòng/Link
+                    </a>
+                  )}
+                </div>
+                {notesData?.session?.nhanxet && (
+                  <div className="text-sm text-gray-600 bg-gray-50 p-2 rounded mb-2">
+                    <strong>Tóm tắt:</strong> {notesData.session.nhanxet}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* Phần Ghi chú */}
             <div>
               <h3 className="text-lg font-semibold mb-3">Ghi chú</h3>
               {notesData ? (
-                notesData.ghi_chu_chot ? (
-                  <div className="space-y-4">
-                    <div>
-                      <p className="text-sm font-medium text-gray-700 mb-1">Nội dung:</p>
-                      <div className="bg-gray-50 p-3 rounded-lg">
-                        <p className="text-sm whitespace-pre-wrap">{notesData.ghi_chu_chot.noi_dung || "-"}</p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
+                (() => {
+                  // Ưu tiên hiển thị ghi chú chốt, nếu không có thì hiển thị nháp
+                  const ghiChu = notesData.ghi_chu_chot || notesData.ghi_chu_nhap;
+                  const isNhap = !notesData.ghi_chu_chot && notesData.ghi_chu_nhap;
+                  const hasBoth = notesData.ghi_chu_chot && notesData.ghi_chu_nhap;
+                  
+                  if (!ghiChu) {
+                    return <div className="text-center text-gray-500 py-4">Chưa có ghi chú</div>;
+                  }
+                  
+                  return (
+                    <div className="space-y-4">
+                      {/* Hiển thị đầy đủ thông tin */}
                       <div>
-                        <p className="text-sm font-medium text-gray-700 mb-1">Kết luận ngành:</p>
-                        <p className="text-sm">{notesData.ghi_chu_chot.ket_luan_nganh || "-"}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-700 mb-1">Mức quan tâm:</p>
-                        <p className="text-sm">{notesData.ghi_chu_chot.muc_quan_tam || "-"}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-700 mb-1">Điểm dự kiến:</p>
-                        <p className="text-sm">{notesData.ghi_chu_chot.diem_du_kien || "-"}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-700 mb-1">Trạng thái:</p>
-                        <p className="text-sm">{notesData.ghi_chu_chot.trang_thai || "-"}</p>
-                      </div>
-                    </div>
-                    {notesData.ghi_chu_chot.yeu_cau_bo_sung && (
-                      <div>
-                        <p className="text-sm font-medium text-gray-700 mb-1">Yêu cầu bổ sung:</p>
+                        <p className="text-sm font-medium text-gray-700 mb-1">Nội dung:</p>
                         <div className="bg-gray-50 p-3 rounded-lg">
-                          <p className="text-sm whitespace-pre-wrap">{notesData.ghi_chu_chot.yeu_cau_bo_sung}</p>
+                          <p className="text-sm whitespace-pre-wrap">{ghiChu.noi_dung || "-"}</p>
                         </div>
                       </div>
-                    )}
-                  </div>
-                ) : notesData.ghi_chu_nhap ? (
-                  <div className="space-y-4">
-                    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
-                      <p className="text-sm text-yellow-800">⚠️ Đây là bản nháp, chưa được chốt</p>
+                      
+                      <div className="grid grid-cols-2 gap-4">
+                        <div>
+                          <p className="text-sm font-medium text-gray-700 mb-1">Kết luận ngành:</p>
+                          <p className="text-sm">{ghiChu.ket_luan_nganh || "-"}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-700 mb-1">Mức quan tâm:</p>
+                          <p className="text-sm">{ghiChu.muc_quan_tam || "-"}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-700 mb-1">Điểm dự kiến:</p>
+                          <p className="text-sm">{ghiChu.diem_du_kien || "-"}</p>
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-gray-700 mb-1">Trạng thái:</p>
+                          <p className="text-sm">{ghiChu.trang_thai || (isNhap ? "NHAP" : "CHOT")}</p>
+                        </div>
+                      </div>
+                      
+                      {ghiChu.yeu_cau_bo_sung && (
+                        <div>
+                          <p className="text-sm font-medium text-gray-700 mb-1">Yêu cầu bổ sung:</p>
+                          <div className="bg-gray-50 p-3 rounded-lg">
+                            <p className="text-sm whitespace-pre-wrap">{ghiChu.yeu_cau_bo_sung}</p>
+                          </div>
+                        </div>
+                      )}
+                      
+                      {ghiChu.tom_tat && (
+                        <div>
+                          <p className="text-sm font-medium text-gray-700 mb-1">Tóm tắt hiển thị ở danh sách:</p>
+                          <div className="bg-gray-50 p-3 rounded-lg">
+                            <p className="text-sm whitespace-pre-wrap">{ghiChu.tom_tat}</p>
+                          </div>
+                        </div>
+                      )}
                     </div>
-                    <div>
-                      <p className="text-sm font-medium text-gray-700 mb-1">Nội dung:</p>
-                      <div className="bg-gray-50 p-3 rounded-lg">
-                        <p className="text-sm whitespace-pre-wrap">{notesData.ghi_chu_nhap.noi_dung || "-"}</p>
-                      </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <p className="text-sm font-medium text-gray-700 mb-1">Kết luận ngành:</p>
-                        <p className="text-sm">{notesData.ghi_chu_nhap.ket_luan_nganh || "-"}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-700 mb-1">Mức quan tâm:</p>
-                        <p className="text-sm">{notesData.ghi_chu_nhap.muc_quan_tam || "-"}</p>
-                      </div>
-                      <div>
-                        <p className="text-sm font-medium text-gray-700 mb-1">Điểm dự kiến:</p>
-                        <p className="text-sm">{notesData.ghi_chu_nhap.diem_du_kien || "-"}</p>
-                      </div>
-                    </div>
-                  </div>
-                ) : (
-                  <div className="text-center text-gray-500 py-4">Chưa có ghi chú</div>
-                )
+                  );
+                })()
               ) : (
                 <div className="text-center text-gray-500 py-4">Chưa có ghi chú</div>
               )}
@@ -562,30 +858,60 @@ export default function ConsultationSchedules() {
 
             {/* Phần Minh chứng */}
             <div>
-              <h3 className="text-lg font-semibold mb-3">Minh chứng</h3>
+              <h3 className="text-lg font-semibold mb-3">
+                Tệp đính kèm / Minh chứng
+                <span className="ml-2 text-xs text-gray-500 font-normal">
+                  ({evidenceData && Array.isArray(evidenceData) ? evidenceData.length : 0} {evidenceData && Array.isArray(evidenceData) && evidenceData.length === 1 ? 'mục' : 'mục'})
+                </span>
+              </h3>
               {evidenceData && Array.isArray(evidenceData) && evidenceData.length > 0 ? (
-                <div className="grid grid-cols-2 gap-4">
-                  {evidenceData.map((file) => (
-                    <div key={file.id_file || file.id} className="border border-gray-200 rounded-lg p-4">
-                      <div className="mb-2">
-                        <p className="text-sm font-medium text-gray-700">{file.ten_file || file.tenFile || "Không có tên"}</p>
-                        <p className="text-xs text-gray-500">{file.loai_file || file.loaiFile || "-"}</p>
+                <div className="space-y-3">
+                  {evidenceData.map((file) => {
+                    const isImage = (file.loai_file || file.loaiFile || '').toLowerCase() === 'hinh_anh' || 
+                                   (file.ten_file || file.tenFile || '').match(/\.(jpg|jpeg|png|gif|bmp|webp|svg)$/i);
+                    const fileUrl = file.duong_dan || file.duongDan || file.url;
+                    
+                    return (
+                      <div key={file.id_file || file.id} className="border border-gray-200 rounded-lg p-4 bg-gray-50">
+                        <div className="flex items-start justify-between mb-2">
+                          <div className="flex-1">
+                            <p className="text-sm font-medium text-gray-700">{file.ten_file || file.tenFile || "Không có tên"}</p>
+                            <p className="text-xs text-gray-500 mt-1">
+                              {file.loai_file || file.loaiFile || "-"}
+                              {file.la_minh_chung && ' • Minh chứng'}
+                            </p>
+                            {(file.mo_ta || file.moTa) && (
+                              <p className="text-xs text-gray-600 mt-1">{file.mo_ta || file.moTa}</p>
+                            )}
+                          </div>
+                          {fileUrl && (
+                            <a
+                              href={fileUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-sm text-blue-600 hover:underline ml-2"
+                            >
+                              Xem file →
+                            </a>
+                          )}
+                        </div>
+                        {/* Hiển thị preview hình ảnh nếu là file hình ảnh */}
+                        {isImage && fileUrl && (
+                          <div className="mt-3">
+                            <img
+                              src={fileUrl}
+                              alt={file.ten_file || file.tenFile || 'Preview'}
+                              className="max-w-full h-auto max-h-64 rounded border border-gray-200"
+                              onError={(e) => {
+                                // Ẩn hình ảnh nếu không load được
+                                e.target.style.display = 'none';
+                              }}
+                            />
+                          </div>
+                        )}
                       </div>
-                      {(file.mo_ta || file.moTa) && (
-                        <p className="text-xs text-gray-600 mb-2">{file.mo_ta || file.moTa}</p>
-                      )}
-                      {(file.duong_dan || file.duongDan || file.url) && (
-                        <a
-                          href={file.duong_dan || file.duongDan || file.url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-sm text-blue-600 hover:underline"
-                        >
-                          Xem file →
-                        </a>
-                      )}
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="text-center text-gray-500 py-4">Chưa có minh chứng</div>

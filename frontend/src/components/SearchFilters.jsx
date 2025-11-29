@@ -61,7 +61,6 @@ export default function SearchFilters({ filters, setFilters, years, combos, meth
           setMajorDataMap(nameToCodeMap);
           
           setGroupedMajors(mapped);
-          console.log('Loaded majors:', mapped.length, 'groups');
         } else {
           console.error('Failed to load majors:', res.status);
         }

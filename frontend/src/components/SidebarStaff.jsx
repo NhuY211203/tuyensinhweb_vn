@@ -21,10 +21,10 @@ export default function SidebarStaff() {
       </div>
       <div className="mb-4 font-semibold opacity-90">Người phụ trách</div>
       <div className="flex flex-col gap-2">
-        <Item to="/staff">Yêu cầu tư vấn</Item>
         <Item to="/staff/assign">Phân công chuyên gia</Item>
         <Item to="/staff/schedule-changes">Xem xét thay đổi lịch</Item>
         <Item to="/staff/consultation-schedules">Quản lý lịch tư vấn</Item>
+        <Item to="/staff/news-approval">Phê duyệt tin tuyển sinh</Item>
         <Item to="/staff/statistics">Thống kê</Item>
         <Item to="/staff/notifications">Gửi thông báo/nhắc lịch</Item>
         <Item to="/staff/experts">Quản lý chuyên gia</Item>

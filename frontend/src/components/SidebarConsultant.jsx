@@ -23,10 +23,10 @@ export default function SidebarConsultant() {
       <div className="mb-4 font-semibold opacity-90">Chuyên gia tư vấn</div>
       <div className="flex flex-col gap-2">
         <Item to="/consultant">Tổng quan</Item>
-        <Item to="/consultant/schedule">Lịch của tôi</Item>
-        <Item to="/consultant/meetings">Phòng họp / Link</Item>
+        <Item to="/consultant/schedule">Xem và đăng kí lịch</Item>
+        <Item to="/consultant/meetings">Lịch tư vấn</Item>
         <Item to="/consultant/notes">Ghi chú sau buổi</Item>
-        <Item to="/consultant/candidates">Hồ sơ thí sinh</Item>
+        <Item to="/consultant/candidates">Hồ sơ cá nhân</Item>
       </div>
     </aside>
   );

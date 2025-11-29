@@ -78,13 +78,13 @@ export default function Login() {
         } else {
           switch (userRole) {
             case 'Thành viên':
-              navigate('/dashboard');
+              navigate('/dashboard/news');
               break;
             case 'Tư vấn viên':
               navigate('/consultant');
               break;
             case 'Người phụ trách':
-              navigate('/staff');
+              navigate('/staff/assign');
               break;
             case 'Admin':
               navigate('/manager');

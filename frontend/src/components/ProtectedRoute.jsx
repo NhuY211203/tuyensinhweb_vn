@@ -15,11 +15,11 @@ export default function ProtectedRoute({ children, allowedRoles, allowedRoleIds 
     // Redirect về trang phù hợp với vai trò
     switch (user.vaitro) {
       case 'Thành viên':
-        return <Navigate to="/dashboard" replace />;
+        return <Navigate to="/dashboard/news" replace />;
       case 'Tư vấn viên':
         return <Navigate to="/consultant" replace />;
       case 'Người phụ trách':
-        return <Navigate to="/staff" replace />;
+        return <Navigate to="/staff/assign" replace />;
       case 'Admin':
         return <Navigate to="/manager" replace />;
       case 'Nhân viên phân tích dữ liệu':

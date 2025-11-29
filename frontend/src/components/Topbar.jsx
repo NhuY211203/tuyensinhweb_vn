@@ -24,22 +24,44 @@ export default function Topbar({ onToggleSidebar }) {
   }, []);
 
   // Fetch notifications
-  useEffect(() => {
-    async function loadNotifications() {
-      setLoading(true);
-      try {
-        const response = await api.getMyNotifications();
-        if (response.success) {
-          setNotifications(response.data || []);
-        }
-      } catch (error) {
-        console.error('Error loading notifications:', error);
-      } finally {
-        setLoading(false);
+  const loadNotifications = async () => {
+    setLoading(true);
+    try {
+      const response = await api.getMyNotifications();
+      if (response.success) {
+        const notificationsData = response.data || [];
+        // Sắp xếp lại theo ngày tạo giảm dần (mới nhất trước)
+        const sortedNotifications = [...notificationsData].sort((a, b) => {
+          const dateA = new Date(a.ngaytao || a.createdAt || a.ngay_tao || 0);
+          const dateB = new Date(b.ngaytao || b.createdAt || b.ngay_tao || 0);
+          return dateB - dateA; // Giảm dần (mới nhất trước)
+        });
+        setNotifications(sortedNotifications);
       }
+    } catch (error) {
+      console.error('Error loading notifications:', error);
+    } finally {
+      setLoading(false);
     }
+  };
+
+  useEffect(() => {
     loadNotifications();
+    
+    // Polling: Refresh notifications every 10 seconds
+    const interval = setInterval(() => {
+      loadNotifications();
+    }, 10000);
+    
+    return () => clearInterval(interval);
   }, []);
+
+  // Refresh notifications when dropdown opens
+  useEffect(() => {
+    if (notificationsOpen) {
+      loadNotifications();
+    }
+  }, [notificationsOpen]);
 
   // Fetch user info from API (merge with local storage)
   useEffect(() => {
@@ -70,10 +92,7 @@ export default function Topbar({ onToggleSidebar }) {
     try {
       await api.markNotificationAsRead(notificationId);
       // Refresh notifications
-      const response = await api.getMyNotifications();
-      if (response.success) {
-        setNotifications(response.data || []);
-      }
+      await loadNotifications();
     } catch (error) {
       console.error('Error marking notification as read:', error);
     }
@@ -132,36 +151,47 @@ export default function Topbar({ onToggleSidebar }) {
                     </div>
                   ) : (
                     <div className="divide-y divide-slate-200">
-                      {notifications.map((notification) => (
-                        <div 
-                          key={notification.idthongbao} 
-                          className="p-4 hover:bg-slate-50 transition-colors cursor-pointer"
-                          onClick={() => handleMarkAsRead(notification.idthongbao)}
-                        >
-                          <div className="flex items-start justify-between">
-                            <div className="flex-1 min-w-0">
-                              <p className="text-sm font-medium text-slate-900 truncate">
-                                {notification.tieude}
-                              </p>
-                              <p className="text-xs text-slate-600 mt-1 line-clamp-2">
-                                {notification.noidung}
-                              </p>
-                              <p className="text-xs text-slate-400 mt-1">
-                                {new Date(notification.ngaytao).toLocaleDateString('vi-VN', {
-                                  day: '2-digit',
-                                  month: '2-digit',
-                                  year: 'numeric',
-                                  hour: '2-digit',
-                                  minute: '2-digit'
-                                })}
-                              </p>
+                      {notifications.map((notification) => {
+                        // Hỗ trợ cả id và idthongbao
+                        const notificationId = notification.idthongbao || notification.id;
+                        const title = notification.tieude || notification.title;
+                        const content = notification.noidung || notification.body;
+                        const date = notification.ngaytao || notification.createdAt || notification.ngay_tao;
+                        const isRead = notification.da_doc || notification.is_read || false;
+                        
+                        return (
+                          <div 
+                            key={notificationId || `notif-${Math.random()}`} 
+                            className="p-4 hover:bg-slate-50 transition-colors cursor-pointer"
+                            onClick={() => notificationId && handleMarkAsRead(notificationId)}
+                          >
+                            <div className="flex items-start justify-between">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-slate-900 truncate">
+                                  {title || 'Không có tiêu đề'}
+                                </p>
+                                <p className="text-xs text-slate-600 mt-1 line-clamp-2">
+                                  {content || 'Không có nội dung'}
+                                </p>
+                                {date && (
+                                  <p className="text-xs text-slate-400 mt-1">
+                                    {new Date(date).toLocaleDateString('vi-VN', {
+                                      day: '2-digit',
+                                      month: '2-digit',
+                                      year: 'numeric',
+                                      hour: '2-digit',
+                                      minute: '2-digit'
+                                    })}
+                                  </p>
+                                )}
+                              </div>
+                              {!isRead && (
+                                <span className="ml-2 flex-shrink-0 w-2 h-2 bg-amber-500 rounded-full"></span>
+                              )}
                             </div>
-                            {!notification.da_doc && (
-                              <span className="ml-2 flex-shrink-0 w-2 h-2 bg-amber-500 rounded-full"></span>
-                            )}
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </div>

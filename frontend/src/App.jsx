@@ -1,4 +1,4 @@
-import { Routes, Route, useLocation } from "react-router-dom";
+import { Routes, Route, useLocation, Navigate } from "react-router-dom";
 import Navbar from "./components/Navbar.jsx";
 import Footer from "./layouts/Footer.jsx";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
@@ -41,13 +41,13 @@ import ConsultantNotes from "./pages/consultant/Notes.jsx";
 import ConsultantCandidates from "./pages/consultant/Candidates.jsx";
 
 import StaffLayout from "./layouts/StaffLayout.jsx";
-import StaffRequests from "./pages/staff/Requests.jsx";
 import StaffAssign from "./pages/staff/Assign.jsx";
 import StaffNotifications from "./pages/staff/Notifications.jsx";
 import StaffExperts from "./pages/staff/Consultants.jsx";
 import StaffScheduleChanges from "./pages/staff/ScheduleChangeRequests.jsx";
 import StaffConsultationSchedules from "./pages/staff/ConsultationSchedules.jsx";
 import StaffStatistics from "./pages/staff/Statistics.jsx";
+import NewsApproval from "./pages/staff/NewsApproval.jsx";
 
 import ManagerLayout from "./layouts/ManagerLayout.jsx";
 import ManagerOverview from "./pages/manager/Overview.jsx";
@@ -89,7 +89,7 @@ export default function App() {
               <DashboardLayout />
             </ProtectedRoute>
           }>
-            <Route index element={<Overview />} />
+            <Route index element={<Navigate to="/dashboard/news" replace />} />
             <Route path="score-distribution" element={<Trends />} />
             <Route path="search-trends" element={<TrendsPage />} />
             <Route path="historic-scores" element={<HistoricScores />} />
@@ -132,10 +132,11 @@ export default function App() {
               <StaffLayout />
             </ProtectedRoute>
           }>
-            <Route index element={<StaffRequests />} />
+            <Route index element={<Navigate to="/staff/assign" replace />} />
             <Route path="assign" element={<StaffAssign />} />
             <Route path="schedule-changes" element={<StaffScheduleChanges />} />
             <Route path="consultation-schedules" element={<StaffConsultationSchedules />} />
+            <Route path="news-approval" element={<NewsApproval />} />
             <Route path="statistics" element={<StaffStatistics />} />
             <Route path="notifications" element={<StaffNotifications />} />
             <Route path="consultants" element={<StaffExperts />} />

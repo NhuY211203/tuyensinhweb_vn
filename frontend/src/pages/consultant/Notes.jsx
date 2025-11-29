@@ -17,7 +17,7 @@ export default function ConsultantNotes() {
     muc_quan_tam: 3,
     diem_du_kien: '',
     yeu_cau_bo_sung: '',
-    chia_se_voi_thisinh: false,
+    chia_se_voi_thisinh: true, // Mặc định chia sẻ với thí sinh
     tom_tat: '',
   });
 
@@ -69,29 +69,23 @@ export default function ConsultantNotes() {
       setLoading(true);
       const params = {
         consultant_id: consultantId,
-        date_filter: dateFilter,
-        view_mode: viewMode, // Gửi view_mode để backend filter đúng
+        date_filter: dateFilter, // 'today', 'week', 'month', 'past', 'future', 'all'
+        view_mode: viewMode, // Gửi view_mode để backend filter đúng ('input' hoặc 'view')
       };
-      // Chỉ áp dụng filter_upcoming ở chế độ "input" (Nhập ghi chú)
-      // Ở chế độ "view" (Xem ghi chú đã gửi), hiển thị tất cả ghi chú, kể cả quá khứ
-      if (viewMode === 'input') {
-        params.filter_upcoming = true; // Chỉ lọc ngày hôm nay và các ngày chưa hết hạn
-      }
 
-      const response = await fetch(
-        `http://localhost:8000/api/consultation-notes?${new URLSearchParams(params)}`,
-        {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-          },
-        }
-      );
+      const url = `http://localhost:8000/api/consultation-notes?${new URLSearchParams(params)}`;
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/json',
+        },
+      });
 
       // Kiểm tra status code
       if (!response.ok) {
         const errorText = await response.text();
-        console.error('Response error:', response.status, errorText);
+        console.error('❌ Response error:', response.status, errorText);
         try {
           const errorData = JSON.parse(errorText);
           toast.push({ 
@@ -110,7 +104,6 @@ export default function ConsultantNotes() {
       const data = await response.json();
 
       if (data.success) {
-        // Backend đã filter theo view_mode, chỉ cần sử dụng data trực tiếp
         setSessions(data.data);
         if (data.data.length > 0 && !selectedSession) {
           setSelectedSession(data.data[0].id);
@@ -119,10 +112,11 @@ export default function ConsultantNotes() {
           setSessionDetail(null);
         }
       } else {
+        console.error('❌ API returned success=false:', data.message);
         toast.push({ type: 'error', title: data.message || 'Không thể tải danh sách buổi tư vấn' });
       }
     } catch (error) {
-      console.error('Error fetching sessions:', error);
+      console.error('❌ Error fetching sessions:', error);
       toast.push({ 
         type: 'error', 
         title: error.message === 'Failed to fetch' 
@@ -178,7 +172,7 @@ export default function ConsultantNotes() {
             muc_quan_tam: ghiChu.muc_quan_tam || 3,
             diem_du_kien: ghiChu.diem_du_kien || '',
             yeu_cau_bo_sung: ghiChu.yeu_cau_bo_sung || '',
-            chia_se_voi_thisinh: ghiChu.chia_se_voi_thisinh || false,
+            chia_se_voi_thisinh: true, // Mặc định chia sẻ với thí sinh
             tom_tat: session.nhanxet || '',
           });
           setCurrentGhiChuId(ghiChu.id || null);
@@ -189,7 +183,7 @@ export default function ConsultantNotes() {
             muc_quan_tam: 3,
             diem_du_kien: '',
             yeu_cau_bo_sung: '',
-            chia_se_voi_thisinh: false,
+            chia_se_voi_thisinh: true, // Mặc định chia sẻ với thí sinh
             tom_tat: session.nhanxet || '',
           });
           setCurrentGhiChuId(null);
@@ -271,7 +265,6 @@ export default function ConsultantNotes() {
         newEvidences.push(formEvidence);
       }
       
-      console.log('Preparing to send evidences:', newEvidences.length, newEvidences);
       
       newEvidences.forEach((ev, index) => {
         formDataToSend.append(`new_evidences[${index}][ten_file]`, ev.ten_file || '');
@@ -282,31 +275,15 @@ export default function ConsultantNotes() {
         // Nếu có file, gửi file (file sẽ được upload và tạo URL ở backend)
         if (ev.file) {
           formDataToSend.append(`new_evidences[${index}][file]`, ev.file);
-          console.log(`Added file for evidence ${index}:`, ev.file.name, 'Size:', ev.file.size);
         } 
         // Nếu không có file nhưng có URL hợp lệ, gửi URL
         else if (ev.duong_dan && ev.duong_dan.trim() !== '' && ev.duong_dan !== 'https://...' && !ev.duong_dan.includes('https://...')) {
           formDataToSend.append(`new_evidences[${index}][duong_dan]`, ev.duong_dan);
-          console.log(`Added URL for evidence ${index}:`, ev.duong_dan);
-        } else {
-          console.warn(`Evidence ${index} has no file and no valid URL:`, ev);
         }
       });
 
       evidencesToDelete.forEach((id, index) => {
         formDataToSend.append(`remove_evidence_ids[${index}]`, String(id));
-      });
-
-      // Debug: Log FormData contents
-      console.log('Sending FormData:', {
-        id_lichtuvan: selectedSession,
-        newEvidencesCount: newEvidences.length,
-        newEvidences: newEvidences.map(ev => ({
-          ten_file: ev.ten_file,
-          loai_file: ev.loai_file,
-          has_file: !!ev.file,
-          has_duong_dan: !!ev.duong_dan,
-        })),
       });
 
       const response = await fetch('http://localhost:8000/api/consultation-notes/draft', {
@@ -337,7 +314,6 @@ export default function ConsultantNotes() {
       }
 
       const data = await response.json();
-      console.log('Response data:', data);
       
       if (data.success) {
         toast.push({ type: 'success', title: 'Gửi thành công' });
@@ -516,6 +492,13 @@ export default function ConsultantNotes() {
   
   const canEdit = viewMode === 'input' && selectedSessionData?.can_edit !== false && isApproved && (!isChot || canEditAfterChot) && !isReadOnly && showFormAfterSubmit;
   const canAddNote = viewMode === 'input' && selectedSessionData?.can_add_note !== false && isApproved && (!isChot || canEditAfterChot) && !isReadOnly && showFormAfterSubmit;
+  
+  // Cho phép chỉnh sửa form ghi chú cho các session đã kết thúc, bất kể thời gian
+  // Vì đây là chức năng để nhập ghi chú và minh chứng cho các buổi đã tư vấn
+  const canEditForm = viewMode === 'input' && isApproved && !isReadOnly && showFormAfterSubmit;
+  
+  // Cho phép thêm minh chứng cho các session đã kết thúc, bất kể thời gian
+  const canAddEvidence = canEditForm;
 
   useEffect(() => {
     // Chỉ ẩn form minh chứng nếu ở chế độ chỉ đọc
@@ -536,15 +519,16 @@ export default function ConsultantNotes() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto">
-      <div className="flex justify-between items-center mb-4">
-        <h1 className="text-2xl font-bold">Ghi chú sau buổi</h1>
+    <div className="max-w-7xl mx-auto px-4 py-6">
+      {/* Header */}
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Ghi chú sau buổi</h1>
         <div className="flex gap-2">
           <button
             onClick={() => setViewMode('input')}
-            className={`px-4 py-2 rounded-lg font-medium transition ${
+            className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
               viewMode === 'input'
-                ? 'bg-primary-600 text-white'
+                ? 'bg-primary-600 text-white shadow-md'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
             }`}
           >
@@ -552,9 +536,9 @@ export default function ConsultantNotes() {
           </button>
           <button
             onClick={() => setViewMode('view')}
-            className={`px-4 py-2 rounded-lg font-medium transition ${
+            className={`px-4 py-2 rounded-lg font-medium transition-colors text-sm ${
               viewMode === 'view'
-                ? 'bg-primary-600 text-white'
+                ? 'bg-primary-600 text-white shadow-md'
                 : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
             }`}
           >
@@ -563,30 +547,45 @@ export default function ConsultantNotes() {
         </div>
       </div>
 
-      <div className="grid md:grid-cols-3 gap-4">
-        {/* Sidebar - Danh sách buổi */}
-        <div className="md:col-span-1">
-          <div className="card p-4">
-            <h2 className="font-semibold mb-3">Danh sách buổi</h2>
-            <div className="space-y-4">
-              <div className="grid gap-3">
-                <div>
-                  <label className="text-xs text-gray-500 mb-1 block">Thời gian</label>
-                  <select
-                    value={dateFilter}
-                    onChange={(e) => setDateFilter(e.target.value)}
-                    className="input"
-                  >
-                    <option value="">Tất cả</option>
-                    <option value="today">Hôm nay</option>
-                    <option value="7days">7 ngày</option>
-                    <option value="month">Tháng này</option>
-                  </select>
-                </div>
-              </div>
-              <div className="space-y-2 max-h-[520px] overflow-y-auto">
+      {/* Filter Section - Nằm trên cùng */}
+      <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+          <h2 className="font-semibold text-gray-900 text-base">Danh sách buổi</h2>
+          <div>
+            <label className="text-xs text-gray-600 mb-2 block font-medium">Thời gian</label>
+            <div className="flex flex-wrap gap-1.5">
+              {[
+                { value: '', label: 'Tất cả' },
+                { value: 'today', label: 'Hôm nay' },
+                { value: 'week', label: 'Tuần này' },
+                { value: 'month', label: 'Tháng này' },
+                { value: 'past', label: 'Đã qua' },
+                { value: 'future', label: 'Sắp tới' },
+              ].map(option => (
+                <button
+                  key={option.value}
+                  onClick={() => setDateFilter(option.value)}
+                  className={`px-3 py-1.5 rounded-lg border text-sm transition-colors ${
+                    dateFilter === option.value
+                      ? 'bg-blue-600 text-white border-blue-600 shadow-sm'
+                      : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-gray-400'
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div className="grid lg:grid-cols-4 gap-6">
+        {/* Sidebar - Danh sách buổi - Chiếm 1/4 màn hình */}
+        <div className="lg:col-span-1">
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-4 sticky top-4">
+            <div className="space-y-2 max-h-[calc(100vh-280px)] overflow-y-auto pr-1">
               {sessions.length === 0 ? (
-                <p className="text-sm text-gray-500">
+                <p className="text-xs text-gray-500 text-center py-4">
                   {viewMode === 'view' 
                     ? 'Không có ghi chú đã gửi nào.' 
                     : 'Không có buổi phù hợp bộ lọc.'}
@@ -596,61 +595,59 @@ export default function ConsultantNotes() {
                   <button
                     key={session.id}
                     onClick={() => setSelectedSession(session.id)}
-                    className={`w-full text-left p-3 rounded-lg border transition ${
+                    className={`w-full text-left p-2.5 rounded-lg border transition-all text-xs ${
                       selectedSession === session.id
-                        ? 'bg-primary-50 border-primary-500'
-                        : 'bg-white border-gray-200 hover:bg-gray-50'
+                        ? 'bg-primary-50 border-primary-500 shadow-sm'
+                        : 'bg-white border-gray-200 hover:bg-gray-50 hover:border-gray-300'
                     }`}
                   >
-                    <div className="text-sm font-medium">
-                      {session.ngayhen ? formatDate(session.ngayhen) : 'Chưa có ngày'}
+                    <div className="text-xs font-semibold text-gray-900 line-clamp-1">
+                      {session.ngayhen ? new Date(session.ngayhen).toLocaleDateString('vi-VN', { day: 'numeric', month: 'numeric' }) : 'Chưa có ngày'}
                     </div>
-                    <div className="text-xs text-gray-600 mt-1">
+                    <div className="text-xs text-gray-600 mt-1 line-clamp-1">
                       {session.thisinhten || 'Chưa có thí sinh'}
                     </div>
-                      <div className="flex items-center gap-2 mt-2 text-[11px]">
-                        <span className={`px-2 py-0.5 rounded-full ${getStatusColor(session.tinhtrang)}`}>
-                          {session.tinhtrang || 'Không xác định'}
+                      <div className="flex items-center gap-1 mt-2 flex-wrap">
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] ${getStatusColor(session.tinhtrang)}`}>
+                          {session.tinhtrang || 'N/A'}
                         </span>
-                        <span className={`px-2 py-0.5 rounded-full ${getApprovalInfo(session.duyetlich).className}`}>
+                        <span className={`px-1.5 py-0.5 rounded text-[10px] ${getApprovalInfo(session.duyetlich).className}`}>
                           {getApprovalInfo(session.duyetlich).text}
                         </span>
                       </div>
-                    {session.nhanxet && (
-                      <div className="text-xs text-gray-500 mt-1 line-clamp-2">
-                        {session.nhanxet}
-                      </div>
-                    )}
                     {session.ghi_chu_chot && (
-                      <span className="inline-block mt-1 px-2 py-0.5 text-xs bg-green-100 text-green-800 rounded">
-                        Đã chốt
+                      <span className="inline-block mt-1.5 px-1.5 py-0.5 text-[10px] bg-green-100 text-green-800 rounded font-medium">
+                        ✓ Đã chốt
                       </span>
                     )}
                   </button>
                 ))
               )}
-              </div>
             </div>
           </div>
         </div>
 
-        {/* Main content */}
-        <div className="md:col-span-2">
+        {/* Main content - Chiếm 3/4 màn hình */}
+        <div className="lg:col-span-3">
           {!selectedSession || !sessionDetail ? (
-            <div className="card p-8 text-center text-gray-500">
-              {viewMode === 'view' 
-                ? 'Chọn một buổi tư vấn để xem ghi chú đã gửi'
-                : 'Chọn một buổi tư vấn để xem và chỉnh sửa ghi chú'}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center text-gray-500">
+              <div className="text-4xl mb-3">📝</div>
+              <p className="text-base font-medium">
+                {viewMode === 'view' 
+                  ? 'Chọn một buổi tư vấn để xem ghi chú đã gửi'
+                  : 'Chọn một buổi tư vấn để xem và chỉnh sửa ghi chú'}
+              </p>
             </div>
           ) : viewMode === 'view' && !sessionDetail.ghi_chu_chot && !sessionDetail.ghi_chu_nhap ? (
-            <div className="card p-8 text-center text-gray-500">
-              <p className="mb-2">Buổi tư vấn này chưa có ghi chú đã gửi.</p>
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-12 text-center text-gray-500">
+              <div className="text-4xl mb-3">📋</div>
+              <p className="mb-2 text-base font-medium">Buổi tư vấn này chưa có ghi chú đã gửi.</p>
               <p className="text-sm">Vui lòng chọn buổi khác hoặc chuyển sang chế độ "Nhập ghi chú".</p>
             </div>
           ) : (
             <div className="space-y-4">
               {/* Session Info Header */}
-              <div className="card p-4">
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
                 <div className="flex justify-between items-start mb-3">
                   <div>
                     <h2 className="text-lg font-semibold">
@@ -786,9 +783,9 @@ export default function ConsultantNotes() {
               {!shouldHideForm && 
                (showFormAfterSubmit || (viewMode === 'view' && (sessionDetail?.ghi_chu_chot || sessionDetail?.ghi_chu_nhap))) && 
                !(viewMode === 'input' && isChot && !canEditAfterChot) && (
-              <div className="card p-4">
-                <div className="flex justify-between items-center mb-3">
-                  <h3 className="font-semibold">Ghi chú buổi họp và minh chứng</h3>
+              <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-5">
+                <div className="flex justify-between items-center mb-4">
+                  <h3 className="font-semibold text-lg text-gray-900">Ghi chú buổi họp và minh chứng</h3>
                   {viewMode === 'view' && (sessionDetail?.ghi_chu_chot || sessionDetail?.ghi_chu_nhap) && (
                     <span className="text-xs text-green-600 font-medium">📋 Ghi chú đã được gửi</span>
                   )}
@@ -797,19 +794,19 @@ export default function ConsultantNotes() {
                   )}
                 </div>
                 
-                <div className="space-y-6">
+                <div className="space-y-5">
                   {/* Phần Ghi chú tổng kết */}
                   <div>
-                    <h4 className="text-sm font-semibold text-gray-700 mb-3 border-b pb-2">Ghi chú tổng kết</h4>
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Nội dung ghi chú *</label>
+                    <h4 className="text-sm font-semibold text-gray-700 mb-3 border-b border-gray-200 pb-2">Ghi chú tổng kết</h4>
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium mb-2 text-gray-700">Nội dung ghi chú *</label>
                       <textarea
                         value={formData.noi_dung}
                         onChange={(e) => setFormData({ ...formData, noi_dung: e.target.value })}
-                        rows={6}
-                        className="input w-full"
+                        rows={5}
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 resize-none"
                         placeholder="Nhập nội dung ghi chú chi tiết..."
-                        disabled={isReadOnly || !isApproved || !canAddNote}
+                        disabled={!canEditForm}
                         readOnly={isReadOnly}
                       />
                       <div className="text-xs text-gray-500 mt-1">
@@ -817,30 +814,29 @@ export default function ConsultantNotes() {
                       </div>
                     </div>
 
-                    <div className="grid md:grid-cols-2 gap-4">
+                    <div className="grid md:grid-cols-2 gap-4 mb-4">
                       <div>
-                        <label className="block text-sm font-medium mb-1">Định hướng ngành *</label>
+                        <label className="block text-sm font-medium mb-2 text-gray-700">Định hướng ngành *</label>
                         <select
                           value={formData.ket_luan_nganh}
                           onChange={(e) => setFormData({ ...formData, ket_luan_nganh: e.target.value })}
-                          className="input w-full"
-                          disabled={isReadOnly || !isApproved || !canAddNote}
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                          disabled={!canEditForm}
                         >
                           <option value="">Chọn định hướng ngành</option>
-                          <option value="CNTT">CNTT</option>
-                          <option value="Kinh tế">Kinh tế</option>
-                          <option value="Ngôn ngữ">Ngôn ngữ</option>
-                          <option value="Y dược">Y dược</option>
-                          <option value="Kỹ thuật">Kỹ thuật</option>
-                          <option value="Khoa học xã hội">Khoa học xã hội</option>
-                          <option value="Nghệ thuật">Nghệ thuật</option>
-                          <option value="Giáo dục">Giáo dục</option>
-                          <option value="Khác">Khác</option>
+                          <option value="Công nghệ Thông tin">Công nghệ Thông tin</option>
+                          <option value="Y tế - Sức khỏe">Y tế - Sức khỏe</option>
+                          <option value="Kinh tế - Quản lý">Kinh tế - Quản lý</option>
+                          <option value="Kỹ thuật - Công nghệ">Kỹ thuật - Công nghệ</option>
+                          <option value="Ngoại ngữ - Quốc tế">Ngoại ngữ - Quốc tế</option>
+                          <option value="Sáng tạo - Truyền thông">Sáng tạo - Truyền thông</option>
+                          <option value="Thương mại - Logistics">Thương mại - Logistics</option>
+                          <option value="Năng lượng - Bền vững">Năng lượng - Bền vững</option>
                         </select>
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium mb-1">
+                        <label className="block text-sm font-medium mb-2 text-gray-700">
                           Mức quan tâm: {formData.muc_quan_tam}/5
                         </label>
                         <input
@@ -850,12 +846,12 @@ export default function ConsultantNotes() {
                           value={formData.muc_quan_tam}
                           onChange={(e) => setFormData({ ...formData, muc_quan_tam: parseInt(e.target.value) })}
                           className="w-full"
-                          disabled={isReadOnly || !isApproved || !canAddNote}
+                          disabled={!canEditForm}
                         />
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium mb-1">Điểm dự kiến</label>
+                        <label className="block text-sm font-medium mb-2 text-gray-700">Điểm dự kiến</label>
                         <input
                           type="number"
                           step="0.01"
@@ -863,37 +859,37 @@ export default function ConsultantNotes() {
                           max="30"
                           value={formData.diem_du_kien}
                           onChange={(e) => setFormData({ ...formData, diem_du_kien: e.target.value })}
-                          className="input w-full"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                           placeholder="0.00 - 30.00"
-                          disabled={isReadOnly || !isApproved || !canAddNote}
+                          disabled={!canEditForm}
                           readOnly={isReadOnly}
                         />
                       </div>
 
                       <div>
-                        <label className="block text-sm font-medium mb-1">Yêu cầu bổ sung</label>
+                        <label className="block text-sm font-medium mb-2 text-gray-700">Yêu cầu bổ sung</label>
                         <input
                           type="text"
                           value={formData.yeu_cau_bo_sung}
                           onChange={(e) => setFormData({ ...formData, yeu_cau_bo_sung: e.target.value })}
-                          className="input w-full"
+                          className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                           placeholder="VD: Cần chứng chỉ IELTS 5.5"
-                          disabled={isReadOnly || !isApproved || !canAddNote}
+                          disabled={!canEditForm}
                           readOnly={isReadOnly}
                         />
                       </div>
                     </div>
 
-                    <div>
-                      <label className="block text-sm font-medium mb-1">Tóm tắt hiển thị ở danh sách</label>
+                    <div className="mb-4">
+                      <label className="block text-sm font-medium mb-2 text-gray-700">Tóm tắt hiển thị ở danh sách</label>
                       <input
                         type="text"
                         value={formData.tom_tat}
                         onChange={(e) => setFormData({ ...formData, tom_tat: e.target.value })}
-                        className="input w-full"
+                        className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                         placeholder="Tóm tắt ngắn gọn (tối đa 255 ký tự)"
                         maxLength={255}
-                        disabled={isReadOnly || !isApproved || !canAddNote}
+                        disabled={!canEditForm}
                         readOnly={isReadOnly}
                       />
                       <div className="text-xs text-gray-500 mt-1">
@@ -901,24 +897,11 @@ export default function ConsultantNotes() {
                       </div>
                     </div>
 
-                    <div className="flex items-center">
-                      <input
-                        type="checkbox"
-                        id="chia_se"
-                        checked={formData.chia_se_voi_thisinh}
-                        onChange={(e) => setFormData({ ...formData, chia_se_voi_thisinh: e.target.checked })}
-                        className="mr-2"
-                        disabled={isReadOnly || !isApproved || !canAddNote}
-                      />
-                      <label htmlFor="chia_se" className="text-sm">
-                        Chia sẻ với thí sinh
-                      </label>
-                    </div>
                   </div>
 
                   {/* Phần Tệp đính kèm / Minh chứng - Luôn hiển thị vì bắt buộc */}
-                  <div className="border-t pt-4">
-                    <div className="flex justify-between items-center mb-3">
+                  <div className="border-t border-gray-200 pt-4">
+                    <div className="flex justify-between items-center mb-4">
                       <h4 className="text-sm font-semibold text-gray-700">
                         Tệp đính kèm / Minh chứng <span className="text-red-500">*</span>
                         <span className="ml-2 text-xs text-gray-500 font-normal">
@@ -927,10 +910,10 @@ export default function ConsultantNotes() {
                       </h4>
                     </div>
 
-                    {!isReadOnly && isApproved && canAddNote && (
-                      <div className="mb-4 p-3 bg-gray-50 rounded-lg space-y-3">
+                    {canAddEvidence && (
+                      <div className="mb-4 p-4 bg-gray-50 rounded-lg space-y-3 border border-gray-200">
                         <div>
-                          <label className="block text-sm font-medium mb-1">Chọn file (hoặc nhập URL bên dưới)</label>
+                          <label className="block text-sm font-medium mb-2 text-gray-700">Chọn file (hoặc nhập URL bên dưới)</label>
                           <input
                             type="file"
                             accept="image/*,video/*,.pdf"
@@ -948,7 +931,7 @@ export default function ConsultantNotes() {
                                 });
                               }
                             }}
-                            className="input w-full"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
                           />
                           {evidenceForm.file && (
                             <div className="text-xs text-gray-500 mt-1">
@@ -957,7 +940,7 @@ export default function ConsultantNotes() {
                           )}
                         </div>
                         <div>
-                          <label className="block text-sm font-medium mb-1">Hoặc nhập URL</label>
+                          <label className="block text-sm font-medium mb-2 text-gray-700">Hoặc nhập URL</label>
                           <input
                             type="text"
                             value={evidenceForm.duong_dan}
@@ -968,7 +951,7 @@ export default function ConsultantNotes() {
                                 file: null, // Xóa file nếu nhập URL
                               });
                             }}
-                            className="input w-full"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
                             placeholder="https://..."
                             disabled={!!evidenceForm.file}
                           />
@@ -977,22 +960,22 @@ export default function ConsultantNotes() {
                           </div>
                         </div>
                         <div>
-                          <label className="block text-sm font-medium mb-1">Tên file *</label>
+                          <label className="block text-sm font-medium mb-2 text-gray-700">Tên file *</label>
                           <input
                             type="text"
                             value={evidenceForm.ten_file}
                             onChange={(e) => setEvidenceForm({ ...evidenceForm, ten_file: e.target.value })}
-                            className="input w-full"
+                            className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
                             placeholder="Tên file hoặc mô tả"
                           />
                         </div>
                         <div className="grid md:grid-cols-2 gap-3">
                           <div>
-                            <label className="block text-sm font-medium mb-1">Loại file</label>
+                            <label className="block text-sm font-medium mb-2 text-gray-700">Loại file</label>
                             <select
                               value={evidenceForm.loai_file}
                               onChange={(e) => setEvidenceForm({ ...evidenceForm, loai_file: e.target.value })}
-                              className="input w-full"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
                             >
                               <option value="link">Link</option>
                               <option value="hinh_anh">Hình ảnh</option>
@@ -1001,12 +984,12 @@ export default function ConsultantNotes() {
                             </select>
                           </div>
                           <div>
-                            <label className="block text-sm font-medium mb-1">Mô tả </label>
+                            <label className="block text-sm font-medium mb-2 text-gray-700">Mô tả </label>
                             <input
                               type="text"
                               value={evidenceForm.mo_ta}
                               onChange={(e) => setEvidenceForm({ ...evidenceForm, mo_ta: e.target.value })}
-                              className="input w-full"
+                              className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-sm"
                               placeholder="Mô tả ngắn"
                             />
                           </div>
@@ -1067,7 +1050,7 @@ export default function ConsultantNotes() {
                                     {file.loai_file} {file.la_minh_chung && '• Minh chứng'}
                                   </div>
                                 </div>
-                                {!isReadOnly && isApproved && canAddNote && (
+                                {canAddEvidence && (
                                   <button
                                     onClick={() => handleDeleteEvidence(file)}
                                     className="text-red-600 hover:text-red-800 text-sm ml-2"
@@ -1098,17 +1081,17 @@ export default function ConsultantNotes() {
                   </div>
 
                   {/* Nút lưu chung cho cả ghi chú và minh chứng */}
-                  <div className="flex gap-3 justify-end items-center border-t pt-4">
+                  <div className="flex gap-3 justify-end items-center border-t border-gray-200 pt-4">
                     {evidenceFiles.filter(ev => ev.mode === 'new').length > 0 && (
-                      <span className="text-xs text-blue-600 mr-auto">
+                      <span className="text-xs text-blue-600 mr-auto font-medium">
                         📎 Có {evidenceFiles.filter(ev => ev.mode === 'new').length} minh chứng mới chưa lưu
                       </span>
                     )}
-                    {!isReadOnly && (
+                    {canEditForm && (
                       <button
                         onClick={handleSaveDraft}
-                        disabled={isReadOnly || !isApproved || !canAddNote || saving}
-                        className="btn-primary"
+                        disabled={saving}
+                        className="px-6 py-2.5 bg-primary-600 text-white rounded-lg hover:bg-primary-700 disabled:bg-gray-400 disabled:cursor-not-allowed transition-colors font-medium text-sm shadow-sm"
                       >
                         {saving ? 'Đang gửi...' : 'Gửi ngay'}
                       </button>

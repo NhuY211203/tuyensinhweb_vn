@@ -17,6 +17,8 @@ class NguoiDung extends Model
         'taikhoan',
         'matkhau',
         'email',
+        'hinhdaidien',
+        'gioithieu',
         'hoten',
         'sodienthoai',
         'diachi',

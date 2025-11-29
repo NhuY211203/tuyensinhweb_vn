@@ -10,7 +10,6 @@ class ApiService {
     
     // Get token from localStorage
     const token = localStorage.getItem('token');
-    console.log('API token:', token ? 'Present' : 'Not found');
     
     const config = {
       headers: {
@@ -22,14 +21,9 @@ class ApiService {
       ...options,
     };
 
-    console.log('API request:', { url, config });
-
     try {
       const response = await fetch(url, config);
-      console.log('API response status:', response.status);
-      
       const data = await response.json();
-      console.log('API response data:', data);
 
       if (!response.ok) {
         throw new Error(data.message || 'Có lỗi xảy ra');
@@ -113,6 +107,7 @@ class ApiService {
       consultant_id: consultantId,
       duyetlich: 2, // only approved schedules
       status: 1,    // only available slots (server expects 'status')
+      date_filter: 'future', // only future schedules
       ...params,
     };
     return this.get('/consultation-schedules', query);
@@ -178,6 +173,29 @@ class ApiService {
     return this.get('/my-appointments', query);
   }
 
+  // Ratings APIs for danhgia_lichtuvan
+  async getScheduleRating(scheduleId) {
+    return this.get('/ratings/by-schedule', { lichtuvan_id: scheduleId });
+  }
+
+  async getConsultantRating(consultantId) {
+    return this.get('/ratings/by-consultant', { consultant_id: consultantId });
+  }
+
+  // Consultation notes APIs
+  async getConsultationNoteBySession(sessionId) {
+    return this.get(`/consultation-notes/${sessionId}`);
+  }
+
+  async createScheduleRating(data) {
+    // data: { idlichtuvan, idnguoidat, diemdanhgia, nhanxet, an_danh }
+    return this.post('/ratings', data);
+  }
+
+  async updateScheduleRating(id, data) {
+    return this.put(`/ratings/${id}`, data);
+  }
+
   // Chat APIs
   async getChatContacts(consultantId) {
     return this.get('/chat/contacts', { consultant_id: consultantId });
@@ -218,12 +236,38 @@ class ApiService {
     return this.put(`/notifications/${id}/status`, { status });
   }
 
-  async getNotificationRecipients(notificationId) {
-    return this.get(`/notifications/${notificationId}/recipients`);
+  async getNotificationRecipients(notificationId, params = {}) {
+    return this.get(`/notifications/${notificationId}/recipients`, params);
   }
 
-  async getNotificationStats() {
-    return this.get('/notifications/stats');
+  async getNotificationDetail(id) {
+    return this.get(`/notifications/${id}`);
+  }
+
+  async openScheduleRegistration() {
+    // Get user ID from localStorage
+    const user = JSON.parse(localStorage.getItem('user') || '{}');
+    const userId = user.idnguoidung || user.id;
+    
+    console.log('openScheduleRegistration - user from localStorage:', user);
+    console.log('openScheduleRegistration - userId:', userId);
+    
+    const body = {};
+    if (userId) {
+      body.user_id = userId;
+    }
+    
+    console.log('openScheduleRegistration - request body:', body);
+    
+    return this.post('/notifications/open-schedule-registration', body);
+  }
+
+  async checkScheduleRegistrationStatus() {
+    return this.get('/notifications/check-schedule-registration-status');
+  }
+
+  async getNotificationStats(params = {}) {
+    return this.get('/notifications/stats', params);
   }
 
   // Get notifications for current user (consultants)
@@ -263,6 +307,64 @@ class ApiService {
 
   async submitCareerTest(answers) {
     return this.post('/career-test/submit', { answers });
+  }
+
+  // Tin Tuyen Sinh (News) APIs
+  async getNewsList(params = {}) {
+    return this.get('/admin/tin-tuyen-sinh', params);
+  }
+
+  async getNewsById(id) {
+    return this.get(`/admin/tin-tuyen-sinh/${id}`);
+  }
+
+  async createNews(data) {
+    return this.post('/admin/tin-tuyen-sinh', data);
+  }
+
+  async updateNews(id, data) {
+    return this.put(`/admin/tin-tuyen-sinh/${id}`, data);
+  }
+
+  async deleteNews(id) {
+    return this.delete(`/admin/tin-tuyen-sinh/${id}`);
+  }
+
+  async approveNews(id, postData) {
+    // Update status to "Đã duyệt"
+    return this.updateNews(id, { ...postData, trang_thai: "Đã duyệt" });
+  }
+
+  async rejectNews(id, postData) {
+    // Update status to "Đã gỡ"
+    return this.updateNews(id, { ...postData, trang_thai: "Đã gỡ" });
+  }
+
+  async hideNews(id, postData) {
+    // Update status to "Ẩn"
+    return this.updateNews(id, { ...postData, trang_thai: "Ẩn" });
+  }
+
+  // Public news APIs (only approved news)
+  async getPublicNewsList(params = {}) {
+    return this.get('/tin-tuyen-sinh', params);
+  }
+
+  async getPublicNewsById(id) {
+    return this.get(`/tin-tuyen-sinh/${id}`);
+  }
+
+  // User management APIs
+  async createUser(userData) {
+    return this.post('/users', userData);
+  }
+
+  async updateUser(userData) {
+    return this.put('/users', userData);
+  }
+
+  async getRoles() {
+    return this.get('/vaitro');
   }
 }
 

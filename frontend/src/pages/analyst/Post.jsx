@@ -31,9 +31,7 @@ export default function Posts() {
     hinh_anh_dai_dien: "",
     nguon_bai_viet: "",
     loai_tin: "Tin tuyển sinh",
-    muc_do_uu_tien: 0,
     trang_thai: "Chờ duyệt",
-    ngay_het_han: "",
     ma_nguon: ""
   });
   const [fileHinhAnh, setFileHinhAnh] = useState(null);
@@ -115,9 +113,7 @@ export default function Posts() {
         hinh_anh_dai_dien: item.hinh_anh_dai_dien || "",
         nguon_bai_viet: item.nguon_bai_viet || "",
         loai_tin: item.loai_tin || "Tin tuyển sinh",
-        muc_do_uu_tien: item.muc_do_uu_tien || 0,
         trang_thai: item.trang_thai || "Chờ duyệt",
-        ngay_het_han: item.ngay_het_han ? item.ngay_het_han.split(' ')[0] : "",
         ma_nguon: item.ma_nguon || ""
       });
       setFileHinhAnh(null);
@@ -130,9 +126,7 @@ export default function Posts() {
         hinh_anh_dai_dien: "",
         nguon_bai_viet: "",
         loai_tin: "Tin tuyển sinh",
-        muc_do_uu_tien: 0,
         trang_thai: "Chờ duyệt",
-        ngay_het_han: "",
         ma_nguon: ""
       });
       setFileHinhAnh(null);
@@ -165,9 +159,7 @@ export default function Posts() {
       fd.append('tom_tat', formData.tom_tat || '');
       fd.append('nguon_bai_viet', formData.nguon_bai_viet || '');
       fd.append('loai_tin', formData.loai_tin || 'Tin tuyển sinh');
-      fd.append('muc_do_uu_tien', formData.muc_do_uu_tien ?? 0);
       fd.append('trang_thai', formData.trang_thai || 'Chờ duyệt');
-      fd.append('ngay_het_han', formData.ngay_het_han || '');
       fd.append('ma_nguon', formData.ma_nguon || '');
 
       if (fileHinhAnh) {
@@ -226,26 +218,64 @@ export default function Posts() {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex justify-between items-center">
-        <h1 className="text-2xl font-bold">Quản lý tin tuyển sinh</h1>
-        <button onClick={() => handleOpenModal()} className="btn-primary">
-          + Thêm tin mới
+    <div className="min-h-screen bg-gradient-to-b from-[#E8FFF6] via-white to-[#E3F2FD] -mx-6 -my-4 px-6 py-4">
+      <div className="max-w-6xl mx-auto space-y-6">
+        <div className="flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <p className="text-xs uppercase tracking-widest text-[#0F8B6E] font-semibold">
+              Trung tâm nội dung
+            </p>
+            <h1 className="text-3xl font-bold text-gray-900">
+              Quản lý tin tức tuyển sinh
+            </h1>
+            <p className="text-sm text-gray-500 mt-1">
+              Chủ động theo dõi, lọc và cập nhật các bài viết mới nhất.
+            </p>
+          </div>
+          <button
+            onClick={() => handleOpenModal()}
+            className="px-4 py-2 rounded-full bg-gradient-to-r from-[#34D399] to-[#0D9488] text-white font-semibold shadow hover:opacity-90 transition"
+          >
+            + Đăng tin mới
         </button>
       </div>
 
+        {toast.show && (
+          <div
+            className={`rounded-2xl border px-4 py-3 text-sm font-semibold shadow-sm ${
+              toast.type === "success"
+                ? "bg-[#ECFDF5] border-[#A7F3D0] text-[#047857]"
+                : toast.type === "error"
+                ? "bg-[#FEF2F2] border-[#FECACA] text-[#B91C1C]"
+                : "bg-[#EFF6FF] border-[#BFDBFE] text-[#1D4ED8]"
+            }`}
+          >
+            {toast.message}
+          </div>
+        )}
+
       {/* Filters */}
-      <div className="card p-4">
-        <div className="grid md:grid-cols-4 gap-4">
+        <div className="bg-white rounded-2xl shadow-sm border border-[#D7F2E8] p-5 space-y-4">
+          <div className="grid lg:grid-cols-4 gap-4">
+            <div className="col-span-2">
+              <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">
+                Từ khóa
+              </label>
           <input
             type="text"
-            placeholder="Tìm kiếm theo tiêu đề, mô tả..."
-            className="input"
+                placeholder="Tìm theo tiêu đề, mô tả..."
+                className="input w-full"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
           />
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">
+                Trường
+              </label>
           <select
-            className="input"
+                className="input w-full"
             value={filterUniversity}
             onChange={(e) => setFilterUniversity(e.target.value)}
           >
@@ -256,8 +286,14 @@ export default function Posts() {
               </option>
             ))}
           </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">
+                Loại tin
+              </label>
           <select
-            className="input"
+                className="input w-full"
             value={filterLoaiTin}
             onChange={(e) => setFilterLoaiTin(e.target.value)}
           >
@@ -268,8 +304,14 @@ export default function Posts() {
             <option value="Sự kiện">Sự kiện</option>
             <option value="Khác">Khác</option>
           </select>
+            </div>
+
+            <div>
+              <label className="block text-xs font-semibold text-gray-500 uppercase mb-2">
+                Trạng thái
+              </label>
           <select
-            className="input"
+                className="input w-full"
             value={filterTrangThai}
             onChange={(e) => setFilterTrangThai(e.target.value)}
           >
@@ -280,9 +322,14 @@ export default function Posts() {
             <option value="Đã gỡ">Đã gỡ</option>
           </select>
         </div>
-        <div className="flex gap-2 justify-end mt-4">
+          </div>
+          <div className="flex flex-wrap justify-between items-center gap-4">
+            <p className="text-sm text-gray-500">
+              {totalRecords ? `Hiện có ${totalRecords} bài viết trong hệ thống` : "Không có dữ liệu"}
+            </p>
+            <div className="flex gap-3">
           <button
-            className="btn-outline"
+                className="px-4 py-2 rounded-full border border-gray-200 text-gray-600 hover:text-[#0F8B6E] hover:border-[#0F8B6E]"
             onClick={() => {
               setSearchTerm("");
               setFilterUniversity("");
@@ -291,81 +338,91 @@ export default function Posts() {
               loadPosts(1);
             }}
           >
-            🔄 Làm mới
+                Làm mới
           </button>
+            </div>
         </div>
       </div>
 
       {/* Table */}
-      <div className="card overflow-hidden">
+        <div className="bg-white rounded-2xl shadow-sm border border-[#E2E8F0]">
         {loading ? (
-          <div className="p-8 text-center">Đang tải...</div>
+            <div className="p-10 text-center">Đang tải dữ liệu...</div>
         ) : (
           <>
-            <div className="overflow-x-auto">
               <table className="w-full">
-                <thead className="bg-gray-50">
+                <thead className="bg-[#F4F9FF] text-xs text-gray-500 uppercase tracking-wide">
                   <tr>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">ID</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Tiêu đề</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Trường</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Loại tin</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Trạng thái</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Ngày đăng</th>
-                    <th className="px-4 py-3 text-left text-sm font-semibold">Thao tác</th>
+                    <th className="px-4 py-3 text-left font-semibold w-14">ID</th>
+                    <th className="px-4 py-3 text-left font-semibold">Tiêu đề</th>
+                    <th className="px-4 py-3 text-left font-semibold w-48">Trường</th>
+                    <th className="px-4 py-3 text-center font-semibold w-32">Loại tin</th>
+                    <th className="px-4 py-3 text-center font-semibold w-32">Trạng thái</th>
+                    <th className="px-4 py-3 text-left font-semibold w-28">Ngày đăng</th>
+                    <th className="px-4 py-3 text-left font-semibold w-28">Thao tác</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-gray-200">
+                <tbody className="divide-y divide-[#F0F4F8]">
                   {posts.length === 0 ? (
                     <tr>
-                      <td colSpan="7" className="px-4 py-8 text-center text-gray-500">
-                        Không có dữ liệu
+                      <td colSpan="7" className="px-4 py-12 text-center text-gray-500">
+                        Chưa có bài viết nào phù hợp
                       </td>
                     </tr>
                   ) : (
                     posts.map((post) => (
-                      <tr key={post.id_tin} className="hover:bg-gray-50">
-                        <td className="px-4 py-3">{post.id_tin}</td>
+                      <tr key={post.id_tin} className="hover:bg-[#F9FFFC] transition">
+                        <td className="px-4 py-3 text-sm text-gray-600">{post.id_tin}</td>
                         <td className="px-4 py-3">
-                          <div className="font-medium">{post.tieu_de}</div>
+                          <div className="font-semibold text-gray-900 line-clamp-1">{post.tieu_de}</div>
                           {post.tom_tat && (
                             <div className="text-sm text-gray-500 line-clamp-1">{post.tom_tat}</div>
                           )}
                         </td>
-                        <td className="px-4 py-3">{post.tentruong || "-"}</td>
-                        <td className="px-4 py-3">
-                          <span className="px-2 py-1 text-xs rounded-full bg-blue-100 text-blue-800">
+                        <td className="px-4 py-3 text-sm text-gray-600">{post.tentruong || "-"}</td>
+                        <td className="px-4 py-3 text-center">
+                          <span className="inline-block min-w-[90px] px-2.5 py-1 text-xs rounded-full bg-[#E3F5EE] text-[#0F8B6E] font-semibold">
                             {post.loai_tin}
                           </span>
                         </td>
-                        <td className="px-4 py-3">
-                          <span className={`px-2 py-1 text-xs rounded-full ${
-                            post.trang_thai === 'Đã duyệt' ? 'bg-green-100 text-green-800' :
-                            post.trang_thai === 'Chờ duyệt' ? 'bg-yellow-100 text-yellow-800' :
-                            post.trang_thai === 'Ẩn' ? 'bg-gray-100 text-gray-800' :
-                            'bg-red-100 text-red-800'
-                          }`}>
+                        <td className="px-4 py-3 text-center">
+                          <span
+                            className={`inline-block min-w-[90px] px-2.5 py-1 text-xs rounded-full font-semibold ${
+                              post.trang_thai === "Đã duyệt"
+                                ? "bg-[#ECFDF5] text-[#047857]"
+                                : post.trang_thai === "Chờ duyệt"
+                                ? "bg-[#FEF3C7] text-[#92400E]"
+                                : post.trang_thai === "Ẩn"
+                                ? "bg-gray-100 text-gray-600"
+                                : "bg-[#FFE4E6] text-[#BE123C]"
+                            }`}
+                          >
                             {post.trang_thai}
                           </span>
                         </td>
-                        <td className="px-4 py-3 text-sm">{formatDate(post.ngay_dang)}</td>
+                        <td className="px-4 py-3 text-sm text-gray-600">{formatDate(post.ngay_dang)}</td>
                         <td className="px-4 py-3">
                           <div className="flex gap-2">
                             <button
                               onClick={() => handleOpenModal(post)}
-                              className="text-blue-600 hover:text-blue-800 text-sm"
+                              className="text-[#0F8B6E] hover:underline text-sm font-semibold"
                             >
                               Sửa
                             </button>
-                            <button
-                              onClick={() => {
-                                setDeleteId(post.id_tin);
-                                setShowDeleteModal(true);
-                              }}
-                              className="text-red-600 hover:text-red-800 text-sm"
-                            >
-                              Xóa
-                            </button>
+                            {post.trang_thai !== "Đã duyệt" && (
+                              <>
+                                <span className="text-gray-300">|</span>
+                                <button
+                                  onClick={() => {
+                                    setDeleteId(post.id_tin);
+                                    setShowDeleteModal(true);
+                                  }}
+                                  className="text-[#D9463E] hover:underline text-sm font-semibold"
+                                >
+                                  Xóa
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -373,29 +430,32 @@ export default function Posts() {
                   )}
                 </tbody>
               </table>
-            </div>
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="px-4 py-3 border-t flex items-center justify-between">
-                <div className="text-sm text-gray-700">
-                  Hiển thị {((currentPage - 1) * 20) + 1} - {Math.min(currentPage * 20, totalRecords)} trong tổng {totalRecords} tin
+                <div className="px-4 py-4 border-t flex flex-wrap gap-3 items-center justify-between text-sm text-gray-600">
+                  <div>
+                    Hiển thị {((currentPage - 1) * 20) + 1} - {Math.min(currentPage * 20, totalRecords)} / {totalRecords} bài
                 </div>
                 <div className="flex gap-2">
                   <button
-                    onClick={() => loadPosts(currentPage - 1, searchTerm, filterUniversity, filterLoaiTin, filterTrangThai)}
+                      onClick={() =>
+                        loadPosts(currentPage - 1, searchTerm, filterUniversity, filterLoaiTin, filterTrangThai)
+                      }
                     disabled={currentPage === 1}
-                    className="px-3 py-1 border rounded disabled:opacity-50"
+                      className="px-4 py-2 rounded-full border border-gray-200 disabled:opacity-40"
                   >
                     Trước
                   </button>
-                  <span className="px-3 py-1">
-                    Trang {currentPage} / {totalPages}
+                    <span className="px-4 py-2 rounded-full bg-[#E3F5EE] text-[#0F8B6E] font-semibold">
+                      {currentPage} / {totalPages}
                   </span>
                   <button
-                    onClick={() => loadPosts(currentPage + 1, searchTerm, filterUniversity, filterLoaiTin, filterTrangThai)}
+                      onClick={() =>
+                        loadPosts(currentPage + 1, searchTerm, filterUniversity, filterLoaiTin, filterTrangThai)
+                      }
                     disabled={currentPage === totalPages}
-                    className="px-3 py-1 border rounded disabled:opacity-50"
+                      className="px-4 py-2 rounded-full border border-gray-200 disabled:opacity-40"
                   >
                     Sau
                   </button>
@@ -505,43 +565,7 @@ export default function Posts() {
               </div>
             </div>
 
-            <div className="grid md:grid-cols-3 gap-4">
-              <div>
-                <label className="block text-sm font-medium mb-1">Mức độ ưu tiên</label>
-                <input
-                  type="number"
-                  className="input"
-                  min="0"
-                  max="100"
-                  value={formData.muc_do_uu_tien}
-                  onChange={(e) => setFormData({ ...formData, muc_do_uu_tien: parseInt(e.target.value) || 0 })}
-                />
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Trạng thái</label>
-                <select
-                  className="input"
-                  value={formData.trang_thai}
-                  onChange={(e) => setFormData({ ...formData, trang_thai: e.target.value })}
-                >
-                  <option value="Chờ duyệt">Chờ duyệt</option>
-                  <option value="Đã duyệt">Đã duyệt</option>
-                  <option value="Ẩn">Ẩn</option>
-                  <option value="Đã gỡ">Đã gỡ</option>
-                </select>
-              </div>
-
-              <div>
-                <label className="block text-sm font-medium mb-1">Ngày hết hạn</label>
-                <input
-                  type="date"
-                  className="input"
-                  value={formData.ngay_het_han}
-                  onChange={(e) => setFormData({ ...formData, ngay_het_han: e.target.value })}
-                />
-              </div>
-            </div>
+            <input type="hidden" value={formData.trang_thai} readOnly />
 
             <div>
               <label className="block text-sm font-medium mb-1">Mã nguồn</label>
@@ -582,6 +606,7 @@ export default function Posts() {
       </Modal>
 
       {toast.show && <Toast message={toast.message} type={toast.type} />}
+    </div>
     </div>
   );
 }

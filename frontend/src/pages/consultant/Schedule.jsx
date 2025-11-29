@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { useToast } from '../../components/Toast';
 import QuarterScheduleSelector from '../../components/QuarterScheduleSelector';
+import api from '../../services/api';
 
 export default function ConsultantSchedule() {
   const [schedules, setSchedules] = useState([]);
@@ -8,6 +9,10 @@ export default function ConsultantSchedule() {
   const [editingSchedule, setEditingSchedule] = useState(null);
   // Tab lọc theo trạng thái duyệt lịch (1=Chờ duyệt, 2=Đã duyệt, 3=Từ chối) hoặc 'booked' (Đã đăng ký)
   const [approvalFilter, setApprovalFilter] = useState('1');
+  // Bộ lọc theo thời gian: 'all', 'today', 'week', 'month', 'past', 'future', 'range'
+  const [dateFilter, setDateFilter] = useState('all');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
   const [formData, setFormData] = useState({
     date: '',
     start_time: '',
@@ -30,6 +35,12 @@ export default function ConsultantSchedule() {
   const [selectedScheduleForView, setSelectedScheduleForView] = useState(null);
   const [changeRequests, setChangeRequests] = useState([]);
   const [loadingChangeRequests, setLoadingChangeRequests] = useState(false);
+  const [scheduleRegistrationStatus, setScheduleRegistrationStatus] = useState({
+    isOpen: false,
+    endDate: null,
+    endDateFormatted: null
+  });
+  const [checkingStatus, setCheckingStatus] = useState(true);
 
   // Danh sách 4 ca học cố định
   const timeSlots = [
@@ -125,7 +136,22 @@ export default function ConsultantSchedule() {
 
   useEffect(() => {
     fetchSchedules();
-  }, [approvalFilter]); // Thêm approvalFilter vào dependency để fetch lại khi filter thay đổi
+    checkScheduleRegistrationStatus();
+  }, [approvalFilter, dateFilter, startDate, endDate]); // Fetch lại khi filter thay đổi và khi đổi khoảng ngày
+
+  const checkScheduleRegistrationStatus = async () => {
+    try {
+      setCheckingStatus(true);
+      const response = await api.checkScheduleRegistrationStatus();
+      if (response.success) {
+        setScheduleRegistrationStatus(response.data);
+      }
+    } catch (error) {
+      console.error('Error checking schedule registration status:', error);
+    } finally {
+      setCheckingStatus(false);
+    }
+  };
 
   const fetchSchedules = async () => {
     try {
@@ -141,30 +167,21 @@ export default function ConsultantSchedule() {
         url += `&duyetlich=${approvalFilter}`;
       }
       
+      // Thêm bộ lọc ngày
+      if (dateFilter === 'range') {
+        if (startDate) url += `&start_date=${startDate}`;
+        if (endDate) url += `&end_date=${endDate}`;
+      } else if (dateFilter && dateFilter !== 'all') {
+        url += `&date_filter=${dateFilter}`;
+      }
+      
       const response = await fetch(url);
       const data = await response.json();
       
       if (data.success) {
-        // Lọc chỉ hiển thị lịch trong khung giờ 7AM-7PM
-        const filteredSchedules = data.data.filter(schedule => {
-          const startHour = parseInt(schedule.giobatdau.split(':')[0]);
-          const endHour = parseInt(schedule.ketthuc.split(':')[0]);
-          // Lọc cả giờ bắt đầu và giờ kết thúc
-          return startHour >= 7 && startHour < 19 && endHour >= 7 && endHour < 19;
-        });
-        console.log('Total schedules:', data.data.length);
-        console.log('Filtered schedules:', filteredSchedules.length);
-        console.log('Approval filter:', approvalFilter);
-        // Debug: Kiểm tra dữ liệu relationships
-        if (filteredSchedules.length > 0) {
-          console.log('First schedule data:', filteredSchedules[0]);
-          console.log('nguoiDat relationship:', filteredSchedules[0].nguoiDat);
-          console.log('nguoi_dat relationship:', filteredSchedules[0].nguoi_dat);
-          console.log('nguoiDuyet relationship:', filteredSchedules[0].nguoiDuyet);
-          console.log('nguoi_duyet relationship:', filteredSchedules[0].nguoi_duyet);
-          console.log('Current filter:', approvalFilter);
-        }
-        setSchedules(filteredSchedules);
+        // Không giới hạn khung giờ → hiển thị tất cả
+        const items = Array.isArray(data.data) ? data.data : [];
+        setSchedules(items);
       } else {
         toast.push({ type: 'error', title: 'Không thể tải lịch tư vấn' });
       }
@@ -461,39 +478,111 @@ export default function ConsultantSchedule() {
         <div>
           <h1 className="text-2xl font-bold">Lịch của tôi</h1>
           <p className="text-sm text-gray-600 mt-1">
-            Hiển thị lịch trong khung giờ 7:00 - 18:59 ({visibleSchedules.length} lịch)
+            Tổng số: {visibleSchedules.length} lịch
           </p>
         </div>
         <div className="flex gap-3">
-          <button 
-            onClick={() => setShowQuarterSelector(true)}
-            className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
-          >
-            📅 Đăng ký theo quý
-          </button>
+          {scheduleRegistrationStatus.isOpen ? (
+            <button 
+              onClick={() => setShowQuarterSelector(true)}
+              className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700"
+            >
+              📅 Đăng ký theo quý
+            </button>
+          ) : (
+            <div className="px-4 py-2 bg-gray-300 text-gray-600 rounded-lg cursor-not-allowed" title="Đăng ký lịch chưa được mở">
+              📅 Đăng ký theo quý (Chưa mở)
+            </div>
+          )}
+          {scheduleRegistrationStatus.isOpen && scheduleRegistrationStatus.endDateFormatted && (
+            <div className="px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm flex items-center">
+              <span className="mr-2">ℹ️</span>
+              Đăng ký mở đến ngày {scheduleRegistrationStatus.endDateFormatted}
+            </div>
+          )}
         </div>
       </div>
 
       {/* Tabs lọc theo duyetlich và đã đăng ký */}
-      <div className="mb-4 flex gap-2">
+      <div className="mb-4 flex gap-2 flex-wrap">
         {[
-          { key: '1', label: 'Chờ duyệt' },
-          { key: '2', label: 'Đã duyệt' },
-          { key: '3', label: 'Từ chối' },
-          { key: 'booked', label: 'Đã đăng ký' },
+          { key: '1', label: 'Chờ duyệt', bgColor: 'bg-yellow-50', borderColor: 'border-yellow-300', textColor: 'text-yellow-800', hoverColor: 'hover:bg-yellow-100' },
+          { key: '2', label: 'Đã duyệt', bgColor: 'bg-green-50', borderColor: 'border-green-300', textColor: 'text-green-800', hoverColor: 'hover:bg-green-100' },
+          { key: '3', label: 'Từ chối', bgColor: 'bg-red-50', borderColor: 'border-red-300', textColor: 'text-red-800', hoverColor: 'hover:bg-red-100' },
+          { key: 'booked', label: 'Đã đăng ký', bgColor: 'bg-blue-50', borderColor: 'border-blue-300', textColor: 'text-blue-800', hoverColor: 'hover:bg-blue-100' },
         ].map(tab => (
           <button
             key={tab.key}
             onClick={() => setApprovalFilter(tab.key)}
-            className={`px-3 py-1.5 rounded-full border text-sm ${
+            className={`px-5 py-2.5 rounded-lg font-semibold text-base shadow-md transition-all ${
               approvalFilter === tab.key
-                ? 'bg-indigo-600 text-white border-indigo-600'
-                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white border-2 border-blue-500 shadow-lg transform scale-105'
+                : `${tab.bgColor} ${tab.textColor} border-2 ${tab.borderColor} ${tab.hoverColor}`
             }`}
           >
             {tab.label}
           </button>
         ))}
+      </div>
+
+      {/* Bộ lọc theo thời gian */}
+      <div className="mb-4 flex gap-2 flex-wrap items-center">
+        <span className="text-xs text-gray-600 mr-2">Thời gian:</span>
+        {[
+          { value: 'all', label: 'Tất cả' },
+          { value: 'today', label: 'Hôm nay' },
+          { value: 'week', label: 'Tuần này' },
+          { value: 'month', label: 'Tháng này' },
+          { value: 'past', label: 'Ngày đã qua' },
+          { value: 'future', label: 'Ngày sắp tới' },
+        ].map(option => (
+          <button
+            key={option.value}
+            onClick={() => {
+              setDateFilter(option.value);
+              if (option.value !== 'range') { setStartDate(''); setEndDate(''); }
+            }}
+            className={`px-3 py-1.5 rounded-lg border text-sm font-medium transition-all ${
+              dateFilter === option.value
+                ? 'bg-blue-500 text-white border-blue-600 shadow-md'
+                : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50 hover:border-gray-400'
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+        {/* Dải ngày */}
+        <div className="flex items-center gap-2 ml-2">
+          <input
+            type="date"
+            value={startDate}
+            onChange={(e) => setStartDate(e.target.value)}
+            className="px-2 py-1 border border-gray-300 rounded"
+          />
+          <span>-</span>
+          <input
+            type="date"
+            value={endDate}
+            onChange={(e) => setEndDate(e.target.value)}
+            className="px-2 py-1 border border-gray-300 rounded"
+          />
+          <button
+            onClick={() => setDateFilter('range')}
+            className={`px-3 py-1.5 rounded-lg border text-sm font-medium ${
+              dateFilter === 'range' ? 'bg-blue-500 text-white border-blue-600 shadow-md' : 'bg-white text-gray-700 border-gray-300 hover:bg-gray-50'
+            }`}
+          >
+            Áp dụng
+          </button>
+          {(startDate || endDate) && (
+            <button
+              onClick={() => { setStartDate(''); setEndDate(''); setDateFilter('all'); }}
+              className="px-3 py-1.5 rounded-lg border text-sm font-medium bg-white text-gray-700 border-gray-300 hover:bg-gray-50"
+            >
+              Xóa
+            </button>
+          )}
+        </div>
       </div>
 
       <div className="card p-5">
@@ -506,12 +595,18 @@ export default function ConsultantSchedule() {
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50">
-                <th className="p-3 text-left">
-                  {(approvalFilter === '2' || approvalFilter === '3') ? 'Tên người duyệt' : 'Tên người đặt'}
-                </th>
-                <th className="p-3 text-left">
-                  {(approvalFilter === '2' || approvalFilter === '3') ? 'Email người duyệt' : 'Email người đặt'}
-                </th>
+                {(approvalFilter === '2' || approvalFilter === '3') && (
+                  <>
+                    <th className="p-3 text-left">Tên người duyệt</th>
+                    <th className="p-3 text-left">Email người duyệt</th>
+                  </>
+                )}
+                {approvalFilter === 'booked' && (
+                  <>
+                    <th className="p-3 text-left">Tên người đặt</th>
+                    <th className="p-3 text-left">Email người đặt</th>
+                  </>
+                )}
                 <th className="p-3 text-left">Ngày</th>
                 <th className="p-3 text-left">Thời gian bắt đầu</th>
                 <th className="p-3 text-left">Thời gian kết thúc</th>
@@ -531,18 +626,18 @@ export default function ConsultantSchedule() {
             <tbody>
               {visibleSchedules.map((schedule) => (
                 <tr key={schedule.idlichtuvan} className="border-t hover:bg-gray-50">
-                  <td className="p-3">
-                    {(approvalFilter === '2' || approvalFilter === '3')
-                      ? (schedule.nguoiDuyet?.hoten || schedule.nguoi_duyet?.hoten || '-')
-                      : (schedule.nguoiDat?.hoten || schedule.nguoi_dat?.hoten || schedule.idnguoidat || '-')
-                    }
-                  </td>
-                  <td className="p-3">
-                    {(approvalFilter === '2' || approvalFilter === '3')
-                      ? (schedule.nguoiDuyet?.email || schedule.nguoi_duyet?.email || '-')
-                      : (schedule.nguoiDat?.email || schedule.nguoi_dat?.email || '-')
-                    }
-                  </td>
+                  {(approvalFilter === '2' || approvalFilter === '3') && (
+                    <>
+                      <td className="p-3">{schedule.nguoiDuyet?.hoten || schedule.nguoi_duyet?.hoten || '-'}</td>
+                      <td className="p-3">{schedule.nguoiDuyet?.email || schedule.nguoi_duyet?.email || '-'}</td>
+                    </>
+                  )}
+                  {approvalFilter === 'booked' && (
+                    <>
+                      <td className="p-3">{schedule.nguoiDat?.hoten || schedule.nguoi_dat?.hoten || '-'}</td>
+                      <td className="p-3">{schedule.nguoiDat?.email || schedule.nguoi_dat?.email || '-'}</td>
+                    </>
+                  )}
                   <td className="p-3">{new Date(schedule.ngayhen).toLocaleDateString('vi-VN')}</td>
                   <td className="p-3">
                     {schedule.giobatdau 

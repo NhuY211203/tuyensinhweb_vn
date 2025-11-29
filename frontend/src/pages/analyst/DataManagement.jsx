@@ -88,21 +88,14 @@ export default function DataManagement() {
       if (filterKeyword) params.set("keyword", filterKeyword.trim());
 
       const url = `http://localhost:8000/api/diemchuan?${params.toString()}`;
-      console.log("Fetching:", url);
       
       const res = await fetch(url);
-      console.log("Response status:", res.status);
       
       if (!res.ok) {
         throw new Error(`HTTP ${res.status}: ${res.statusText}`);
       }
       
       const data = await res.json();
-      console.log("API Response:", data);
-      console.log("API Response data property:", data.data);
-      console.log("API Response data length:", data.data?.length);
-      console.log("API Response current_page:", data.current_page);
-      console.log("API Response total:", data.total);
 
       // Laravel pagination structure - check actual response format
       let list = [];
@@ -123,10 +116,6 @@ export default function DataManagement() {
       } else {
         console.warn("Unexpected response format:", data);
       }
-
-      console.log("Parsed data:", { list, currentPage, totalPages, totalItems });
-      console.log("First item in list:", list[0]);
-      console.log("Setting rows with:", list.length, "items");
 
       setRows(list);
       setPage(currentPage);

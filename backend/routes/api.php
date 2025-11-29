@@ -71,6 +71,8 @@ Route::post('/password/verify', [AuthController::class, 'verifyPassword']);
 // User management routes (for admin/staff)
 Route::get('/users', [AuthController::class, 'getUsers']);
 Route::get('/admin-stats', [AuthController::class, 'getStats']);
+Route::post('/users', [AuthController::class, 'createUser']);
+Route::put('/users', [AuthController::class, 'updateUser']);
 Route::post('/users/update-role', [AuthController::class, 'updateUserRole']);
 Route::post('/test-json', function(\Illuminate\Http\Request $request) {
     return response()->json([
@@ -141,6 +143,13 @@ Route::get('/chat/contacts', [ChatController::class, 'contacts']);
 Route::get('/chat/room', [ChatController::class, 'getOrCreateRoom']);
 Route::get('/chat/messages', [ChatController::class, 'list']);
 Route::post('/chat/messages', [ChatController::class, 'send']);
+
+// Ratings routes (danhgia_lichtuvan)
+use App\Http\Controllers\RatingsController;
+Route::get('/ratings/by-schedule', [RatingsController::class, 'showBySchedule']);
+Route::get('/ratings/by-consultant', [RatingsController::class, 'getByConsultant']);
+Route::post('/ratings', [RatingsController::class, 'store']);
+Route::put('/ratings/{id}', [RatingsController::class, 'update']);
 
 // Test route
 Route::get('/test-lichtuvan', function() {
@@ -253,6 +262,8 @@ Route::prefix('notifications')->group(function () {
     Route::get('/', [NotificationController::class, 'index']);
     Route::get('/my', [NotificationController::class, 'myNotifications']); // For consultants to view their notifications
     Route::get('/stats', [NotificationController::class, 'stats']);
+    Route::post('/open-schedule-registration', [NotificationController::class, 'openScheduleRegistration']);
+    Route::get('/check-schedule-registration-status', [NotificationController::class, 'checkScheduleRegistrationStatus']);
     Route::get('/{id}', [NotificationController::class, 'show']);
     Route::put('/{id}/status', [NotificationController::class, 'updateStatus']);
     Route::put('/{id}/read', [NotificationController::class, 'markAsRead']);
@@ -408,6 +419,7 @@ Route::prefix('admin/phuong-thuc-xet-tuyen')->group(function () {
 // TinTuyenSinh routes (Admin)
 Route::prefix('admin/tin-tuyen-sinh')->group(function () {
     Route::get('/', [TinTuyenSinhController::class, 'index']);
+    Route::get('/{id}', [TinTuyenSinhController::class, 'adminShow']); // Xem chi tiết (bao gồm cả tin chưa duyệt)
     Route::post('/', [TinTuyenSinhController::class, 'store']);
     Route::put('/{id}', [TinTuyenSinhController::class, 'update']);
     Route::delete('/{id}', [TinTuyenSinhController::class, 'destroy']);
