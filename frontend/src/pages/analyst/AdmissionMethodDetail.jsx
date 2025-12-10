@@ -1,8 +1,7 @@
-import { useEffect, useState } from "react";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
-import api from "../../services/api";
+import { useState, useEffect } from "react";
 import Modal from "../../components/Modal";
 import Toast from "../../components/Toast";
+import apiService from "../../services/api";
 
 // Forward declaration to avoid any hoisting issues for the Extra tab
 function MethodExtraTab(props) {

@@ -56,3 +56,13 @@ class KetQuaTinhDiemTotNghiep extends Model
 
 
 
+
+
+
+
+
+
+
+
+
+

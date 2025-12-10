@@ -1,0 +1,178 @@
+================================================================================
+ZALOPAY PAYMENT FIX - SUMMARY OF CHANGES
+================================================================================
+
+PROBLEM:
+--------
+Error: "Giao dịch thất bại" (Transaction failed)
+Sub Error Code: -401
+Sub Error Message: "Dữ liệu yêu cầu không hợp lệ" (Invalid request data)
+
+ROOT CAUSES:
+-----------
+1. Missing ZaloPay configuration in .env file
+2. Incorrect data format - some values were not strings
+3. Incorrect app_user value (was using app_id instead of user_id)
+4. Missing discount amount handling
+5. Insufficient logging for debugging
+
+SOLUTIONS IMPLEMENTED:
+---------------------
+
+1. UPDATED PaymentController.php (generateZaloPayQR method)
+   
+   Changes:
+   - Added support for pointsUsed and discountAmount parameters
+   - Changed app_user from app_id to actual user_id (more reliable)
+   - Ensured ALL request data is explicitly cast to string
+   - Used implode() for MAC data string to avoid formatting issues
+   - Added JSON_UNESCAPED_UNICODE flag for proper Vietnamese character handling
+   - Enhanced logging with detailed request/response information
+   - Added sub_return_code and sub_return_message to error responses
+   - Better error handling and debugging information
+   
+   Key improvements:
+   ```php
+   // Before: app_user = (string) $appId;
+   // After:  app_user = (string) $userId;
+   
+   // Before: $dataString = "{$appId}|{$appTransId}|...";
+   // After:  $dataString = implode('|', [(string) $appId, ...]);
+   
+   // Before: json_encode($embedDataObj);
+   // After:  json_encode($embedDataObj, JSON_UNESCAPED_UNICODE);
+   ```
+
+2. CREATED DebugPaymentController.php
+   
+   New endpoints for debugging:
+   - GET /api/debug/zalopay-config
+     Check if all ZaloPay environment variables are configured
+   
+   - GET /api/debug/zalopay-connection
+     Test ZaloPay API connection with sample data
+   
+   - GET /api/debug/payment-logs
+     View recent payment-related logs from laravel.log
+
+3. UPDATED routes/api.php
+   
+   Added debug routes:
+   ```php
+   Route::prefix('debug')->group(function () {
+       Route::get('/zalopay-config', [DebugPaymentController::class, 'checkZaloPayConfig']);
+       Route::get('/zalopay-connection', [DebugPaymentController::class, 'checkZaloPayConnection']);
+       Route::get('/payment-logs', [DebugPaymentController::class, 'getPaymentLogs']);
+   });
+   ```
+
+4. CREATED Configuration Documentation
+   
+   - ZALOPAY_CONFIG.txt: Setup instructions
+   - ZALOPAY_FIX_SUMMARY.txt: This file
+
+REQUIRED SETUP STEPS:
+--------------------
+
+1. Create .env file in backend/ directory with:
+   
+   ZALOPAY_APP_ID=2553
+   ZALOPAY_KEY1=PcY4iZIKFCIDz50pIrXrHD8gJ2WTvMAu9ajQrDJ142SoYvTtQBJ4bIct7p7XH6ix
+   ZALOPAY_KEY2=trMrHm9yP6yP8O87iC6cq5ESxTEn6m3fIcfP2saGgQG1DQu4GiS9pG8S9thj1xgJ
+   ZALOPAY_ENDPOINT=https://sb-openapi.zalopay.vn/v2/create
+   ZALOPAY_CALLBACK_URL=https://hoahoctro.42web.io/laravel/public/api/payments/zalopay/callback
+
+2. Clear Laravel cache:
+   php artisan config:cache
+   php artisan config:clear
+
+3. Test configuration:
+   - Visit: https://hoahoctro.42web.io/laravel/public/api/debug/zalopay-config
+   - Should show all variables as configured (✅)
+
+4. If still getting errors:
+   - Check logs: storage/logs/laravel.log
+   - Use debug endpoint: /api/debug/payment-logs
+   - Verify callback URL is publicly accessible
+
+TESTING CHECKLIST:
+------------------
+
+[ ] .env file created with all ZaloPay variables
+[ ] Config cache cleared (php artisan config:cache)
+[ ] Debug endpoint returns all variables configured
+[ ] Payment modal opens without errors
+[ ] Click "Thanh toán" button
+[ ] QR code displays successfully
+[ ] Scan QR code with ZaloPay app
+[ ] Payment completes successfully
+[ ] Booking is created after payment
+
+IMPORTANT NOTES:
+----------------
+
+1. All request data MUST be strings (no integers in request)
+2. MAC signature calculation is critical - any formatting error will fail
+3. Callback URL must be publicly accessible for ZaloPay to send confirmations
+4. app_trans_id must follow format: YYMMDD_xxxxxx
+5. embed_data and item must be JSON strings, not objects
+6. Check logs frequently during testing
+
+TROUBLESHOOTING:
+----------------
+
+Error: "Dữ liệu yêu cầu không hợp lệ" (-401)
+→ Check .env file has all variables
+→ Check logs for detailed error message
+→ Verify MAC signature calculation
+→ Ensure all data is string type
+
+Error: "Giao dịch thất bại"
+→ Check sub_return_code in response
+→ View logs for full error details
+→ Verify amount > 0
+→ Check callback URL is correct
+
+Error: "Không nhận được order_url"
+→ ZaloPay API didn't return order_url
+→ Check full response in logs
+→ Verify request data format
+→ Check amount and app_trans_id
+
+FILES MODIFIED:
+---------------
+1. backend/app/Http/Controllers/PaymentController.php
+   - Updated generateZaloPayQR() method
+   - Better error handling and logging
+
+2. backend/routes/api.php
+   - Added DebugPaymentController import
+   - Added debug routes
+
+FILES CREATED:
+--------------
+1. backend/app/Http/Controllers/DebugPaymentController.php
+   - New debug endpoints
+
+2. backend/ZALOPAY_CONFIG.txt
+   - Configuration instructions
+
+3. backend/ZALOPAY_FIX_SUMMARY.txt
+   - This file
+
+NEXT STEPS:
+-----------
+1. Create .env file with ZaloPay credentials
+2. Run: php artisan config:cache
+3. Test with debug endpoint
+4. Test payment flow
+5. Monitor logs for any issues
+6. Adjust as needed based on ZaloPay response
+
+For more information:
+- ZaloPay Docs: https://docs.zalopay.vn
+- Check logs: storage/logs/laravel.log
+- Use debug endpoints: /api/debug/*
+
+================================================================================
+

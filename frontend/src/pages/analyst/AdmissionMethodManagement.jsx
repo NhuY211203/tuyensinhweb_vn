@@ -1,6 +1,8 @@
 import { useState, useEffect } from "react";
 import Modal from "../../components/Modal";
 import Toast from "../../components/Toast";
+import api from "../../services/api";
+
 
 export default function AdmissionMethodManagement() {
   const [methods, setMethods] = useState([]);
@@ -28,16 +30,8 @@ export default function AdmissionMethodManagement() {
   const loadMethods = async (page = 1, keyword = "") => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        per_page: "20",
-      });
-      
-      if (keyword) params.append('keyword', keyword);
-      
-      const response = await fetch(`http://localhost:8000/api/admin/phuong-thuc-xet-tuyen?${params}`);
-      const data = await response.json();
-      
+      const params = { page, per_page: 20, ...(keyword && { keyword }) };
+      const data = await api.get('/admin/phuong-thuc-xet-tuyen', params);
       if (data.success) {
         setMethods(data.data || []);
         setTotalPages(data.pagination.last_page || 1);
@@ -111,21 +105,13 @@ export default function AdmissionMethodManagement() {
         mota: formData.mota.trim() || null,
       };
       
-      const url = editingItem 
-        ? `http://localhost:8000/api/admin/phuong-thuc-xet-tuyen/${editingItem.idxettuyen}`
-        : "http://localhost:8000/api/admin/phuong-thuc-xet-tuyen";
+      const endpoint = editingItem 
+        ? `/admin/phuong-thuc-xet-tuyen/${editingItem.idxettuyen}`
+        : "/admin/phuong-thuc-xet-tuyen";
       
-      const method = editingItem ? "PUT" : "POST";
-      
-      const response = await fetch(url, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload)
-      });
-      
-      const data = await response.json();
+      const data = editingItem
+        ? await api.put(endpoint, payload)
+        : await api.post(endpoint, payload);
       
       if (data.success) {
         const successMessage = editingItem 
@@ -166,11 +152,7 @@ export default function AdmissionMethodManagement() {
     
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:8000/api/admin/phuong-thuc-xet-tuyen/${deleteId}`, {
-        method: "DELETE"
-      });
-      
-      const data = await response.json();
+      const data = await api.delete(`/admin/phuong-thuc-xet-tuyen/${deleteId}`);
       
       if (data.success) {
         showToast("Xóa phương thức xét tuyển thành công", "success");

@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import api from "../../services/api";
 import { 
   FileText, 
   Clock, 
@@ -23,10 +24,9 @@ export default function DGNLPractice() {
       setLoading(true);
       setError("");
       try {
-        const res = await fetch("/api/kythi-dgnl/exams");
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.message || "Không thể tải danh sách kỳ thi");
+        const data = await api.get("/dgnl/exams");
+        if (!data || data.success === false) {
+          throw new Error(data?.message || "Không thể tải danh sách kỳ thi");
         }
         setExams(data.data || []);
       } catch (err) {

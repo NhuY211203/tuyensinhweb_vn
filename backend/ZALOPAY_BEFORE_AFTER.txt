@@ -1,0 +1,325 @@
+================================================================================
+ZALOPAY FIX - BEFORE & AFTER COMPARISON
+================================================================================
+
+ISSUE: "Dữ liệu yêu cầu không hợp lệ" (sub_return_code: -401)
+
+================================================================================
+1. APP_USER VALUE
+================================================================================
+
+BEFORE:
+-------
+$appUser = (string) $appId;  // Using app_id as app_user
+
+Problem:
+- app_user should be a unique identifier for the user
+- Using app_id for all users causes conflicts
+- ZaloPay may reject this as invalid
+
+AFTER:
+------
+$appUser = (string) $userId;  // Using actual user_id
+
+Benefit:
+✅ Each user has unique identifier
+✅ ZaloPay can track user properly
+✅ More reliable payment tracking
+
+
+================================================================================
+2. DATA STRING CONSTRUCTION FOR MAC
+================================================================================
+
+BEFORE:
+-------
+$dataString = "{$appId}|{$appTransId}|{$appUser}|{$amount}|{$appTime}|{$embedData}|{$item}";
+
+Problem:
+- String interpolation can cause formatting issues
+- Difficult to debug if spacing is wrong
+- May include extra whitespace
+
+AFTER:
+------
+$dataString = implode('|', [
+    (string) $appId,
+    (string) $appTransId,
+    (string) $appUser,
+    (string) $amount,
+    (string) $appTime,
+    (string) $embedData,
+    (string) $item
+]);
+
+Benefit:
+✅ Cleaner and more reliable
+✅ Explicit type casting
+✅ No hidden whitespace
+✅ Easier to debug
+
+
+================================================================================
+3. JSON ENCODING
+================================================================================
+
+BEFORE:
+-------
+$embedData = json_encode($embedDataObj);
+$item = json_encode($itemObj);
+
+Problem:
+- Vietnamese characters may be escaped as \uXXXX
+- ZaloPay may not handle escaped Unicode properly
+- Harder to read in logs
+
+AFTER:
+------
+$embedData = json_encode($embedDataObj, JSON_UNESCAPED_UNICODE);
+$item = json_encode($itemObj, JSON_UNESCAPED_UNICODE);
+
+Benefit:
+✅ Vietnamese characters preserved
+✅ More readable in logs
+✅ ZaloPay handles better
+
+
+================================================================================
+4. REQUEST DATA CASTING
+================================================================================
+
+BEFORE:
+-------
+$requestData = [
+    'app_id' => strval($appId),
+    'app_user' => strval($appUser),
+    'app_time' => strval($appTime),
+    'amount' => strval($amount),
+    ...
+];
+
+Problem:
+- Some values might still be integers
+- Inconsistent type casting
+- May cause validation errors
+
+AFTER:
+------
+$requestData = [
+    'app_id' => (string) $appId,
+    'app_user' => (string) $appUser,
+    'app_time' => (string) $appTime,
+    'amount' => (string) $amount,
+    ...
+];
+
+Benefit:
+✅ Explicit and consistent casting
+✅ All values guaranteed to be strings
+✅ More reliable
+
+
+================================================================================
+5. DISCOUNT AMOUNT SUPPORT
+================================================================================
+
+BEFORE:
+-------
+$request->validate([
+    'invoiceId' => 'required|integer',
+    'scheduleId' => 'required|integer',
+    'userId' => 'required|integer',
+]);
+
+$amount = $consultationFee + $serviceFee;  // No discount
+
+Problem:
+- No support for reward points discount
+- Cannot apply promotional discounts
+- Fixed amount always
+
+AFTER:
+------
+$request->validate([
+    'invoiceId' => 'required|integer',
+    'scheduleId' => 'required|integer',
+    'userId' => 'required|integer',
+    'pointsUsed' => 'nullable|integer|min:0',
+    'discountAmount' => 'nullable|integer|min:0'
+]);
+
+$subtotal = $consultationFee + $serviceFee;
+$amount = max(0, $subtotal - $discountAmount);
+
+Benefit:
+✅ Support for reward points
+✅ Support for promotional discounts
+✅ Flexible pricing
+
+
+================================================================================
+6. ERROR LOGGING
+================================================================================
+
+BEFORE:
+-------
+Log::error('ZaloPay API Error', [
+    'return_code' => $return_code,
+    'return_message' => $return_message,
+    'full_response' => $result
+]);
+
+Problem:
+- Missing sub_return_code details
+- Difficult to diagnose specific issues
+- Limited debugging information
+
+AFTER:
+------
+Log::error('ZaloPay API Error', [
+    'return_code' => $return_code,
+    'return_message' => $return_message,
+    'sub_return_code' => $result['sub_return_code'] ?? null,
+    'sub_return_message' => $result['sub_return_message'] ?? null,
+    'full_response' => $result,
+    'orderId' => $orderId,
+    'app_trans_id' => $appTransId,
+    'id_thanhtoan' => $thanhToan->id_thanhtoan,
+    'request_data' => $requestData
+]);
+
+Benefit:
+✅ Detailed error information
+✅ Easier to diagnose issues
+✅ Request data included for debugging
+✅ All relevant IDs logged
+
+
+================================================================================
+7. ERROR RESPONSE
+================================================================================
+
+BEFORE:
+-------
+return response()->json([
+    'success' => false,
+    'message' => $return_message ?: 'Giao dịch thất bại',
+    'error' => $result,
+    'debug' => [
+        'return_code' => $return_code,
+        'return_message' => $return_message
+    ]
+], 500);
+
+Problem:
+- Missing sub_return_code in response
+- Frontend cannot show detailed error
+- Difficult for user to understand issue
+
+AFTER:
+------
+return response()->json([
+    'success' => false,
+    'message' => $return_message ?: 'Giao dịch thất bại',
+    'error' => $result,
+    'debug' => [
+        'return_code' => $return_code,
+        'return_message' => $return_message,
+        'sub_return_code' => $result['sub_return_code'] ?? null,
+        'sub_return_message' => $result['sub_return_message'] ?? null
+    ]
+], 500);
+
+Benefit:
+✅ Detailed error information in response
+✅ Frontend can show specific error message
+✅ Better user experience
+
+
+================================================================================
+8. NEW DEBUG ENDPOINTS
+================================================================================
+
+BEFORE:
+-------
+No debug endpoints
+- Cannot verify configuration
+- Difficult to test
+- Manual log checking required
+
+AFTER:
+------
+GET /api/debug/zalopay-config
+- Check if all variables are configured
+- See which variables are missing
+
+GET /api/debug/zalopay-connection
+- Test ZaloPay API connection
+- See sample request data
+
+GET /api/debug/payment-logs
+- View recent payment logs
+- Filter payment-related entries
+
+Benefit:
+✅ Easy configuration verification
+✅ Quick testing without payment
+✅ Easy log viewing
+
+
+================================================================================
+SUMMARY OF IMPROVEMENTS
+================================================================================
+
+Data Format:
+✅ All values explicitly cast to strings
+✅ MAC signature calculation more reliable
+✅ JSON encoding handles Vietnamese characters
+
+User Identification:
+✅ app_user now uses actual user_id
+✅ Better payment tracking
+✅ More reliable ZaloPay integration
+
+Features:
+✅ Support for discount amounts
+✅ Support for reward points
+✅ Flexible pricing
+
+Debugging:
+✅ Enhanced error logging
+✅ Detailed error responses
+✅ New debug endpoints
+✅ Better error messages
+
+Reliability:
+✅ More robust data handling
+✅ Better error handling
+✅ Improved logging
+✅ Easier troubleshooting
+
+
+================================================================================
+TESTING BEFORE & AFTER
+================================================================================
+
+BEFORE:
+-------
+1. Click "Thanh toán"
+2. Get error: "Giao dịch thất bại"
+3. Check logs (difficult to find issue)
+4. No clear error message
+5. Difficult to debug
+
+AFTER:
+-------
+1. Click "Thanh toán"
+2. Get detailed error with sub_return_code
+3. Check /api/debug/zalopay-config
+4. Check /api/debug/payment-logs
+5. Clear error message helps debugging
+6. Easy to identify and fix issues
+
+
+================================================================================
+

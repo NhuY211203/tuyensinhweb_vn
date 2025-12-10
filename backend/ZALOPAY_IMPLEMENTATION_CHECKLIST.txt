@@ -1,0 +1,326 @@
+================================================================================
+ZALOPAY PAYMENT IMPLEMENTATION CHECKLIST
+================================================================================
+
+PHASE 1: SETUP & CONFIGURATION
+==============================
+
+[ ] Read ZALOPAY_QUICK_START.txt
+[ ] Create backend/.env file
+[ ] Add ZALOPAY_APP_ID to .env
+[ ] Add ZALOPAY_KEY1 to .env
+[ ] Add ZALOPAY_KEY2 to .env
+[ ] Add ZALOPAY_ENDPOINT to .env
+[ ] Add ZALOPAY_CALLBACK_URL to .env
+[ ] Add other required variables (DB, MAIL, etc.)
+[ ] Run: php artisan config:cache
+[ ] Run: php artisan config:clear
+[ ] Verify .env file is in .gitignore (don't commit!)
+
+
+PHASE 2: VERIFY CONFIGURATION
+=============================
+
+[ ] Visit: /api/debug/zalopay-config
+[ ] Check ZALOPAY_APP_ID shows ✅
+[ ] Check ZALOPAY_KEY1 shows ✅
+[ ] Check ZALOPAY_KEY2 shows ✅
+[ ] Check ZALOPAY_ENDPOINT shows ✅
+[ ] Check ZALOPAY_CALLBACK_URL shows ✅
+[ ] All variables should show "configured": true
+[ ] Message should say "ZaloPay configuration is complete"
+
+
+PHASE 3: ZALOPAY DASHBOARD SETUP
+================================
+
+[ ] Login to https://business.zalopay.vn
+[ ] Go to Settings → API Keys
+[ ] Copy App ID → ZALOPAY_APP_ID
+[ ] Copy Key 1 → ZALOPAY_KEY1
+[ ] Copy Key 2 → ZALOPAY_KEY2
+[ ] Go to Settings → Webhook
+[ ] Add callback URL: /api/payments/zalopay/callback
+[ ] Verify callback URL is publicly accessible
+[ ] Test webhook (if available)
+[ ] Save all settings
+
+
+PHASE 4: CODE REVIEW
+====================
+
+[ ] Review PaymentController.php changes
+[ ] Verify app_user uses userId (not appId)
+[ ] Verify all data is cast to string
+[ ] Verify MAC signature uses implode()
+[ ] Verify JSON uses JSON_UNESCAPED_UNICODE
+[ ] Verify discount amount support
+[ ] Verify error logging includes sub_return_code
+[ ] Review DebugPaymentController.php
+[ ] Review routes/api.php debug routes
+
+
+PHASE 5: FRONTEND TESTING
+=========================
+
+[ ] Open app dashboard
+[ ] Navigate to appointments/booking section
+[ ] Click "Thanh toán" button
+[ ] Payment modal opens without errors
+[ ] Modal shows correct consultation fee (500,000 VND)
+[ ] Modal shows correct service fee (50,000 VND)
+[ ] Modal shows correct total (550,000 VND)
+[ ] Click "Thanh toán ngay" button
+[ ] Loading indicator appears
+[ ] No JavaScript errors in console
+[ ] QR code displays successfully
+[ ] QR code shows correct amount
+[ ] Timer counts down correctly
+
+
+PHASE 6: PAYMENT TESTING
+========================
+
+[ ] QR code is visible and scannable
+[ ] Open ZaloPay app
+[ ] Scan QR code from payment modal
+[ ] ZaloPay app opens with payment details
+[ ] Amount is correct (550,000 VND)
+[ ] Description shows "Thanh toán phí tư vấn tuyển sinh"
+[ ] Complete payment in ZaloPay app
+[ ] Payment confirmation appears in ZaloPay
+[ ] Return to web app
+[ ] Payment modal shows success message
+[ ] Success message says "Thanh toán thành công!"
+[ ] Booking is created automatically
+[ ] Booking appears in user's appointment list
+
+
+PHASE 7: CALLBACK VERIFICATION
+==============================
+
+[ ] Check storage/logs/laravel.log
+[ ] Look for "ZaloPay Payment Success" entry
+[ ] Verify payment status updated to "DaThanhToan"
+[ ] Verify thoi_gian_thanh_toan is set
+[ ] Verify ma_giao_dich_zp is set
+[ ] Check database thanhtoan table
+[ ] Verify trang_thai = "DaThanhToan"
+[ ] Verify du_lieu_phan_hoi has callback data
+
+
+PHASE 8: ERROR HANDLING TESTING
+===============================
+
+[ ] Test with invalid amount (0)
+  [ ] Should get error message
+  [ ] Check logs for error details
+
+[ ] Test with missing userId
+  [ ] Should get validation error
+  [ ] Error message should be clear
+
+[ ] Test with invalid callback URL
+  [ ] Should fail gracefully
+  [ ] Error should be logged
+
+[ ] Test with expired QR code
+  [ ] Timer should reach 0
+  [ ] Modal should show "QR code đã hết hạn"
+  [ ] User can create new QR code
+
+[ ] Test with network error
+  [ ] Should show error message
+  [ ] Should not create duplicate bookings
+
+
+PHASE 9: REWARD POINTS TESTING
+==============================
+
+[ ] User has reward points available
+[ ] Payment modal shows "Điểm đổi thưởng" section
+[ ] Shows available points correctly
+[ ] Can enter points to use
+[ ] "Tối đa" button sets max points
+[ ] Discount amount updates correctly
+[ ] Total amount decreases correctly
+[ ] Payment with discount works
+[ ] Discount is saved in database
+[ ] Reward points are deducted (if implemented)
+
+
+PHASE 10: DEBUG ENDPOINTS TESTING
+=================================
+
+[ ] Visit /api/debug/zalopay-config
+[ ] Response shows all variables configured
+[ ] Visit /api/debug/zalopay-connection
+[ ] Response shows test data prepared
+[ ] Visit /api/debug/payment-logs?limit=50
+[ ] Response shows recent payment logs
+[ ] Can filter payment-related entries
+
+
+PHASE 11: LOGGING VERIFICATION
+==============================
+
+[ ] Check storage/logs/laravel.log
+[ ] Look for "Created ThanhToan record"
+[ ] Look for "ZaloPay Request Details"
+[ ] Look for "ZaloPay Response"
+[ ] Look for "ZaloPay QR Created Successfully"
+[ ] Look for "ZaloPay Payment Success"
+[ ] All logs should have detailed information
+[ ] No sensitive data (keys) in logs
+
+
+PHASE 12: DATABASE VERIFICATION
+===============================
+
+[ ] Check thanhtoan table
+[ ] Verify new payment record created
+[ ] Verify id_lichtuvan is set
+[ ] Verify id_nguoidung is set
+[ ] Verify phuongthuc = "ZaloPayOA"
+[ ] Verify ma_phieu is set
+[ ] Verify so_tien is correct
+[ ] Verify so_tien_giam is correct (if discount)
+[ ] Verify phi_giao_dich = 50000
+[ ] Verify trang_thai = "KhoiTao" initially
+[ ] Verify ma_giao_dich_app is set
+[ ] Verify du_lieu_yeu_cau has request data
+[ ] After payment, verify trang_thai = "DaThanhToan"
+[ ] After payment, verify thoi_gian_thanh_toan is set
+[ ] After payment, verify ma_giao_dich_zp is set
+[ ] After payment, verify du_lieu_phan_hoi has response
+
+
+PHASE 13: BOOKING VERIFICATION
+==============================
+
+[ ] After successful payment
+[ ] Check consultation_schedule table
+[ ] Verify booking is created
+[ ] Verify id_lichtuvan matches
+[ ] Verify id_nguoidung matches
+[ ] Verify trang_thai = "DaDatCho" or similar
+[ ] Check notification is sent to user
+[ ] Check notification is sent to consultant
+[ ] User can see booking in dashboard
+
+
+PHASE 14: EDGE CASES
+====================
+
+[ ] Test with minimum amount (1 VND)
+[ ] Test with maximum discount (full amount)
+[ ] Test with 0 discount
+[ ] Test with large amount (999,999,999 VND)
+[ ] Test with special characters in description
+[ ] Test with Vietnamese characters
+[ ] Test with rapid clicks (prevent double payment)
+[ ] Test with browser back button
+[ ] Test with modal close button
+[ ] Test with page refresh during payment
+
+
+PHASE 15: SECURITY CHECKS
+=========================
+
+[ ] .env file is in .gitignore
+[ ] No credentials in code
+[ ] No credentials in logs (except masked)
+[ ] MAC signature verification works
+[ ] Callback signature verification works
+[ ] User can only pay for their own bookings
+[ ] Amount cannot be modified by user
+[ ] Discount cannot be modified by user
+[ ] Only authenticated users can pay
+
+
+PHASE 16: PERFORMANCE TESTING
+=============================
+
+[ ] Payment request completes in < 5 seconds
+[ ] QR code displays immediately
+[ ] No memory leaks
+[ ] No database connection leaks
+[ ] Logs don't grow too large
+[ ] Multiple concurrent payments work
+[ ] No race conditions
+
+
+PHASE 17: DOCUMENTATION
+=======================
+
+[ ] ZALOPAY_QUICK_START.txt is clear
+[ ] ZALOPAY_CONFIG.txt is complete
+[ ] ZALOPAY_FIX_SUMMARY.txt explains changes
+[ ] ZALOPAY_BEFORE_AFTER.txt shows improvements
+[ ] Code comments are clear
+[ ] Error messages are helpful
+[ ] Debug endpoints are documented
+
+
+PHASE 18: DEPLOYMENT
+====================
+
+[ ] All changes committed to git
+[ ] .env file NOT committed
+[ ] Create .env on production server
+[ ] Run php artisan config:cache on production
+[ ] Test payment on production
+[ ] Monitor logs on production
+[ ] Set up log rotation
+[ ] Set up error monitoring/alerting
+[ ] Document production setup
+
+
+PHASE 19: MONITORING
+====================
+
+[ ] Set up log monitoring
+[ ] Set up error alerting
+[ ] Monitor payment success rate
+[ ] Monitor payment failure rate
+[ ] Monitor response times
+[ ] Monitor database size
+[ ] Monitor error logs
+[ ] Review logs daily for first week
+[ ] Review logs weekly after that
+
+
+PHASE 20: FINAL VERIFICATION
+============================
+
+[ ] All tests pass
+[ ] No errors in logs
+[ ] Payment flow works end-to-end
+[ ] Booking is created after payment
+[ ] User receives confirmation
+[ ] Consultant receives notification
+[ ] Database is consistent
+[ ] No security issues
+[ ] Documentation is complete
+[ ] Team is trained
+
+
+================================================================================
+SIGN-OFF
+========
+
+Implementation completed by: ___________________
+Date: ___________________
+Tested by: ___________________
+Date: ___________________
+Deployed by: ___________________
+Date: ___________________
+
+
+NOTES:
+------
+[Space for additional notes or issues found]
+
+
+================================================================================
+

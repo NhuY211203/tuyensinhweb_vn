@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import api from "../services/api";
 import { useToast } from './Toast';
 
 export default function FloatingChatIcon() {
@@ -82,18 +83,9 @@ export default function FloatingChatIcon() {
 
     try {
       setLoading(true);
-      const response = await fetch('http://localhost:8000/api/chat-support/get-or-create-room', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Accept': 'application/json',
-        },
-        body: JSON.stringify({
-          idnguoidung: parseInt(currentUserId),
-        })
+      const data = await api.post('/chat-support/get-or-create-room', {
+        idnguoidung: parseInt(currentUserId),
       });
-
-      const data = await response.json();
       
       if (data.success && data.data) {
         setRoomId(data.data.idphongchat_support);
@@ -114,15 +106,10 @@ export default function FloatingChatIcon() {
     if (!roomId) return;
 
     try {
-      const response = await fetch(`http://localhost:8000/api/chat-support/messages?idphongchat_support=${roomId}`);
-      const data = await response.json();
-      
-      if (data.success) {
-        setMessages(data.data);
-        // Đánh dấu tin nhắn đã xem
-        if (currentUserId) {
-          markAsRead();
-        }
+      const res = await api.get('/chat-support/messages', { idphongchat_support: roomId });
+      if (res?.success) {
+        setMessages(res.data || []);
+        if (currentUserId) { markAsRead(); }
       }
     } catch (error) {
       console.error('Error loading messages:', error);
@@ -133,15 +120,9 @@ export default function FloatingChatIcon() {
     if (!roomId || !currentUserId) return;
 
     try {
-      await fetch('http://localhost:8000/api/chat-support/mark-as-read', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          idphongchat_support: roomId,
-          idnguoidung: parseInt(currentUserId),
-        })
+      await api.post('/chat-support/mark-as-read', {
+        idphongchat_support: roomId,
+        idnguoidung: parseInt(currentUserId),
       });
     } catch (error) {
       console.error('Error marking as read:', error);
@@ -154,10 +135,9 @@ export default function FloatingChatIcon() {
       const formData = new FormData();
       formData.append('file', file);
 
-      const response = await fetch('http://localhost:8000/api/chat-support/upload-file', {
+      const response = await fetch(`${api.baseURL}/chat-support/upload-file`, {
         method: 'POST',
         body: formData,
-        // Không set Content-Type header, để browser tự động set với boundary
       });
 
       const data = await response.json();
@@ -246,18 +226,9 @@ export default function FloatingChatIcon() {
     let currentRoomId = roomId;
     if (!currentRoomId) {
       try {
-        const response = await fetch('http://localhost:8000/api/chat-support/get-or-create-room', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json',
-          },
-          body: JSON.stringify({
-            idnguoidung: parseInt(currentUserId),
-          })
+        const data = await api.post('/chat-support/get-or-create-room', {
+          idnguoidung: parseInt(currentUserId),
         });
-
-        const data = await response.json();
         
         if (data.success && data.data && data.data.idphongchat_support) {
           currentRoomId = data.data.idphongchat_support;
@@ -281,21 +252,14 @@ export default function FloatingChatIcon() {
     setSending(true);
 
     try {
-      const response = await fetch('http://localhost:8000/api/chat-support/send-message', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          idphongchat_support: currentRoomId,
-          idnguoigui: parseInt(currentUserId),
-          noi_dung: content,
-          tep_dinh_kem: fileUrl,
-          ten_file: fileName,
-        })
+      const data = await api.post('/chat-support/send-message', {
+        idphongchat_support: currentRoomId,
+        idnguoigui: parseInt(currentUserId),
+        noi_dung: content,
+        tep_dinh_kem: fileUrl,
+        ten_file: fileName,
       });
 
-      const data = await response.json();
       if (data.success) {
         // Thêm tin nhắn mới vào danh sách
         setMessages(prev => [...prev, data.data]);
@@ -468,7 +432,7 @@ export default function FloatingChatIcon() {
                             </a>
                             ) : (
                               <a
-                                href={`http://localhost:8000/api/chat-support/download-file?url=${encodeURIComponent(message.tep_dinh_kem)}&filename=${encodeURIComponent(message.ten_file || 'file')}`}
+                                href={`${api.baseURL}/chat-support/download-file?url=${encodeURIComponent(message.tep_dinh_kem)}&filename=${encodeURIComponent(message.ten_file || 'file')}`}
                                 target="_blank"
                                 rel="noopener noreferrer"
                                 className={`inline-flex items-center gap-2 px-3 py-2 rounded-lg ${

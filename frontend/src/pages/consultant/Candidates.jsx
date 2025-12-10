@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useToast } from '../../components/Toast';
 import PasswordChangeModal from '../../components/PasswordChangeModal';
+import api from '../../services/api';
 
-const API_BASE_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8000';
+// Helper to normalize URL from backend (in case it returns localhost)
+const publicBase = api.baseURL.replace(/\/api$/, ''); // e.g. https://hoahoctro.42web.io/laravel/public
+const normalizeUrl = (u) => (u ? u.replace(/^http:\/\/localhost:8000/, publicBase) : u);
 
 export default function ConsultantProfile() {
   const toast = useToast();
@@ -17,7 +20,7 @@ export default function ConsultantProfile() {
   const consultantId = storedUser.idnguoidung || storedUser.id || localStorage.getItem('user_id');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [avatarPreview, setAvatarPreview] = useState(storedUser.hinhdaidien || '');
+  const [avatarPreview, setAvatarPreview] = useState(normalizeUrl(storedUser.hinhdaidien) || '');
   const [avatarFile, setAvatarFile] = useState(null);
   const [majors, setMajors] = useState([]);
   const [banner, setBanner] = useState(null);
@@ -47,10 +50,8 @@ export default function ConsultantProfile() {
 
   const loadMajors = async () => {
     try {
-      const res = await fetch(`${API_BASE_URL}/api/nhomnganh`);
-      if (!res.ok) return;
-      const json = await res.json();
-      const list = Array.isArray(json?.data) ? json.data : Array.isArray(json) ? json : [];
+      const res = await api.get('/nhomnganh');
+      const list = Array.isArray(res?.data) ? res.data.map(g => ({ id: g.id || g.idnhomnganh, name: g.name || g.tennhom })) : [];
       setMajors(list);
     } catch (error) {
       console.warn('Không thể tải danh sách nhóm ngành', error);
@@ -60,12 +61,7 @@ export default function ConsultantProfile() {
   const loadProfile = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/staff/consultants/${consultantId}`);
-      if (!res.ok) {
-        setLoading(false);
-        return;
-      }
-      const json = await res.json();
+      const json = await api.get(`/staff/consultants/${consultantId}`);
       if (json?.success && json.data) {
         const data = json.data;
         setProfile({
@@ -79,7 +75,7 @@ export default function ConsultantProfile() {
           idnhomnganh: data.nganhHoc?.id ? String(data.nganhHoc.id) : data.nganhHocId ? String(data.nganhHocId) : '',
         });
         if (data.avatar) {
-          setAvatarPreview(data.avatar);
+          setAvatarPreview(normalizeUrl(data.avatar));
         }
       }
     } catch (error) {
@@ -147,8 +143,13 @@ export default function ConsultantProfile() {
     }
 
     try {
-      const res = await fetch(`${API_BASE_URL}/api/profile/update`, {
+      const token = localStorage.getItem('token');
+      const res = await fetch(`${api.baseURL}/profile/update`, {
         method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          ...(token && { 'Authorization': `Bearer ${token}` }),
+        },
         body: formData,
       });
       const json = await res.json();
@@ -167,7 +168,7 @@ export default function ConsultantProfile() {
           idnhomnganh: updated.idnhomnganh ? String(updated.idnhomnganh) : '',
         });
         if (updated.hinhdaidien) {
-          setAvatarPreview(updated.hinhdaidien);
+          setAvatarPreview(normalizeUrl(updated.hinhdaidien));
         }
         const nextUser = { ...(storedUser || {}), ...updated };
         localStorage.setItem('user', JSON.stringify(nextUser));
@@ -189,17 +190,12 @@ export default function ConsultantProfile() {
   const submitPasswordChange = async (pwdForm) => {
     setChangingPwd(true);
     try {
-      const res = await fetch(`${API_BASE_URL}/api/password/change`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          id: consultantId,
-          current_password: pwdForm.current,
-          new_password: pwdForm.next,
-          confirm_password: pwdForm.confirm,
-        }),
+      const json = await api.post('/password/change', {
+        id: consultantId,
+        current_password: pwdForm.current,
+        new_password: pwdForm.next,
+        confirm_password: pwdForm.confirm,
       });
-      const json = await res.json();
       if (json?.success) {
         toast.push({ type: 'success', title: 'Đổi mật khẩu thành công' });
         showBanner('success', 'Đổi mật khẩu thành công.');

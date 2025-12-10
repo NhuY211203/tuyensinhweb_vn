@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { useToast } from './Toast';
+import api from "../services/api";
 
 export default function StaffChatBox() {
   const [isOpen, setIsOpen] = useState(false);
@@ -42,15 +43,9 @@ export default function StaffChatBox() {
     if (!selectedConversation || !currentStaffId) return;
 
     try {
-      await fetch('http://localhost:8000/api/chat-support/mark-as-read', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      await api.post('/chat-support/mark-as-read', {
           idphongchat_support: selectedConversation.idphongchat_support,
           idnguoidung: parseInt(currentStaffId),
-        })
       });
     } catch (error) {
       console.error('Error marking as read:', error);
@@ -62,19 +57,13 @@ export default function StaffChatBox() {
 
     try {
       setLoadingConversations(true);
-      const response = await fetch(`http://localhost:8000/api/chat-support/staff-rooms?idnguoi_phu_trach=${currentStaffId}`);
-      const data = await response.json();
-      
-      if (data.success) {
-        const newConversations = Array.isArray(data.data) ? data.data : [];
-        // Chỉ update state nếu data thực sự thay đổi
+      const res = await api.get('/chat-support/staff-rooms', { idnguoi_phu_trach: currentStaffId });
+      if (res?.success) {
+        const newConversations = Array.isArray(res.data) ? res.data : [];
         setConversations(prev => {
           const prevIds = prev.map(c => c.idphongchat_support).sort().join(',');
           const newIds = newConversations.map(c => c.idphongchat_support).sort().join(',');
-          if (prevIds !== newIds) {
-            return newConversations;
-          }
-          // Giữ nguyên state nếu không có thay đổi về danh sách
+          if (prevIds !== newIds) return newConversations;
           return prev;
         });
       }
@@ -89,27 +78,17 @@ export default function StaffChatBox() {
     if (!selectedConversation) return;
 
     try {
-      const response = await fetch(`http://localhost:8000/api/chat-support/messages?idphongchat_support=${selectedConversation.idphongchat_support}`);
-      const data = await response.json();
-      
-      if (data.success) {
-        const newMessages = Array.isArray(data.data) ? data.data : [];
-        // Chỉ update state nếu có thay đổi
+      const res = await api.get('/chat-support/messages', { idphongchat_support: selectedConversation.idphongchat_support });
+      if (res?.success) {
+        const newMessages = Array.isArray(res.data) ? res.data : [];
         setMessages(prev => {
-          if (prev.length !== newMessages.length) {
-            return newMessages;
-          }
-          // So sánh ID của tin nhắn cuối cùng
+          if (prev.length !== newMessages.length) return newMessages;
           const prevLastId = prev[prev.length - 1]?.idtinnhan_support;
           const newLastId = newMessages[newMessages.length - 1]?.idtinnhan_support;
-          if (prevLastId !== newLastId) {
-            return newMessages;
-          }
+          if (prevLastId !== newLastId) return newMessages;
           return prev;
         });
-        if (currentStaffId) {
-          markAsRead();
-        }
+        if (currentStaffId) { markAsRead(); }
       }
     } catch (error) {
       console.error('Error loading messages:', error);
@@ -158,10 +137,9 @@ export default function StaffChatBox() {
         sizeMB: (file.size / 1024 / 1024).toFixed(2)
       });
 
-      const response = await fetch('http://localhost:8000/api/chat-support/upload-file', {
+      const response = await fetch(`${api.baseURL}/chat-support/upload-file`, {
         method: 'POST',
         body: formData,
-        // Không set Content-Type header, để browser tự động set với boundary
       });
 
       const data = await response.json();
@@ -252,21 +230,13 @@ export default function StaffChatBox() {
     setSending(true);
 
     try {
-      const response = await fetch('http://localhost:8000/api/chat-support/send-message', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
+      const data = await api.post('/chat-support/send-message', {
           idphongchat_support: selectedConversation.idphongchat_support,
           idnguoigui: parseInt(currentStaffId),
           noi_dung: content,
           tep_dinh_kem: fileUrl,
           ten_file: fileName,
-        })
       });
-
-      const data = await response.json();
       if (data.success) {
         setMessages(prev => [...prev, data.data]);
         // Chỉ reload messages và conversations sau khi gửi thành công, không cần setTimeout

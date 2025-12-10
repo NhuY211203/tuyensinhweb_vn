@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useToast } from "../../components/Toast";
+import api from "../../services/api";
 
 function Modal({ open, onClose, children }) {
   if (!open) return null;
@@ -42,16 +43,11 @@ export default function ScheduleChangeRequests() {
   const fetchChangeRequests = async () => {
     try {
       setLoading(true);
-      let url = 'http://localhost:8000/api/schedule-change-requests';
-      if (filter !== 'all') {
-        url += `?status=${filter}`;
-      }
-      
-      const response = await fetch(url);
-      const data = await response.json();
-      
-      if (data.success) {
-        setRequests(data.data);
+      const params = {};
+      if (filter !== 'all') params.status = filter;
+      const data = await api.get('/schedule-change-requests', params);
+      if (data?.success) {
+        setRequests(data.data || []);
       } else {
         setError(data.message || 'Không thể tải danh sách yêu cầu');
         toast.push({ type: 'error', title: data.message || 'Không thể tải danh sách yêu cầu' });
@@ -75,19 +71,12 @@ export default function ScheduleChangeRequests() {
     if (!currentRequest) return;
     
     try {
-      const currentUserId = localStorage.getItem('userId') || '6';
-      const response = await fetch(`http://localhost:8000/api/schedule-change-requests/${currentRequest.iddoilich}/approve`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ghichu_duyet: approvalNote.trim() || null,
-          approver_id: currentUserId
-        })
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const currentUserId = currentUser.idnguoidung || currentUser.id || localStorage.getItem('userId') || 6;
+      const data = await api.post(`/schedule-change-requests/${currentRequest.iddoilich}/approve`, {
+        ghichu_duyet: approvalNote.trim() || null,
+        approver_id: currentUserId
       });
-      
-      const data = await response.json();
       
       if (data.success) {
         toast.push({ type: 'success', title: 'Đã duyệt yêu cầu thay đổi lịch thành công' });
@@ -113,19 +102,12 @@ export default function ScheduleChangeRequests() {
     }
     
     try {
-      const currentUserId = localStorage.getItem('userId') || '6';
-      const response = await fetch(`http://localhost:8000/api/schedule-change-requests/${currentRequest.iddoilich}/reject`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ghichu_duyet: approvalNote.trim(),
-          approver_id: currentUserId
-        })
+      const currentUser = JSON.parse(localStorage.getItem('user') || '{}');
+      const currentUserId = currentUser.idnguoidung || currentUser.id || localStorage.getItem('userId') || 6;
+      const data = await api.post(`/schedule-change-requests/${currentRequest.iddoilich}/reject`, {
+        ghichu_duyet: approvalNote.trim(),
+        approver_id: currentUserId
       });
-      
-      const data = await response.json();
       
       if (data.success) {
         toast.push({ type: 'success', title: 'Đã từ chối yêu cầu thay đổi lịch' });

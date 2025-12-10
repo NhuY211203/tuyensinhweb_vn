@@ -251,47 +251,74 @@ class CatalogController extends Controller
 
     public function diemchuan(Request $request): JsonResponse
     {
-        $q = DiemChuanXetTuyen::query()
-            ->leftJoin('truongdaihoc', 'diemchuanxettuyen.idtruong', '=', 'truongdaihoc.idtruong')
-            ->leftJoin('nganhhoc', 'diemchuanxettuyen.manganh', '=', 'nganhhoc.manganh')
-            ->leftJoin('nganh_truong', function($join) {
-                $join->on('diemchuanxettuyen.idtruong', '=', 'nganh_truong.idtruong')
-                     ->on('diemchuanxettuyen.manganh', '=', 'nganh_truong.manganh');
-            })
-            ->select(
-                'diemchuanxettuyen.*',
-                'truongdaihoc.tentruong',
-                'nganhhoc.tennganh',
-                'nganh_truong.thoiluong_nam',
-                'nganh_truong.mota_tomtat'
+        try {
+            // Một số host giới hạn MAX_JOIN_SIZE, thử bật SQL_BIG_SELECTS nếu được phép
+            try { DB::statement('SET SQL_BIG_SELECTS=1'); } catch (\Throwable $e) {}
+
+            // Loại bỏ join nặng với nganh_truong; thay bằng subquery nhẹ cho từng dòng
+            $q = DiemChuanXetTuyen::query()
+                ->leftJoin('truongdaihoc', 'diemchuanxettuyen.idtruong', '=', 'truongdaihoc.idtruong')
+                ->leftJoin('nganhhoc', 'diemchuanxettuyen.manganh', '=', 'nganhhoc.manganh')
+                ->select(
+                    'diemchuanxettuyen.*',
+                    'truongdaihoc.tentruong',
+                    'nganhhoc.tennganh'
+                );
+
+            // Thêm cột phụ bằng subquery (tránh join phình to)
+            $q->selectSub(
+                DB::table('nganh_truong')
+                    ->select('thoiluong_nam')
+                    ->whereColumn('nganh_truong.idtruong', 'diemchuanxettuyen.idtruong')
+                    ->whereColumn('nganh_truong.manganh', 'diemchuanxettuyen.manganh')
+                    ->limit(1),
+                'thoiluong_nam'
+            );
+            $q->selectSub(
+                DB::table('nganh_truong')
+                    ->select('mota_tomtat')
+                    ->whereColumn('nganh_truong.idtruong', 'diemchuanxettuyen.idtruong')
+                    ->whereColumn('nganh_truong.manganh', 'diemchuanxettuyen.manganh')
+                    ->limit(1),
+                'mota_tomtat'
             );
             
-        if ($request->filled('idtruong')) $q->where('diemchuanxettuyen.idtruong', $request->integer('idtruong'));
-        if ($request->filled('manganh')) $q->where('diemchuanxettuyen.manganh', $request->string('manganh'));
-        if ($request->filled('nam')) $q->where('diemchuanxettuyen.namxettuyen', $request->integer('nam'));
-        if ($request->filled('tohop')) $q->where('diemchuanxettuyen.tohopmon', 'like', '%'.$request->string('tohop').'%');
-        if ($request->filled('idxettuyen')) {
-            $idxettuyen = (int) $request->input('idxettuyen');
-            if ($idxettuyen >= 1 && $idxettuyen <= 4) {
-                $q->where('diemchuanxettuyen.idxettuyen', $idxettuyen);
-            }
-        }
-        // If manganh is provided, we don't need to search by tennganh in keyword
-        // Only search in tentruong and tohopmon
-        if ($request->filled('keyword')) {
-            $kw = '%'.$request->string('keyword')->trim().'%';
-            $hasManganh = $request->filled('manganh');
-            $q->where(function($query) use ($kw, $hasManganh) {
-                $query->where('truongdaihoc.tentruong', 'like', $kw)
-                      ->orWhere('diemchuanxettuyen.tohopmon', 'like', $kw);
-                // Only search in tennganh if manganh is not provided
-                if (!$hasManganh) {
-                    $query->orWhere('nganhhoc.tennganh', 'like', $kw);
+            if ($request->filled('idtruong')) $q->where('diemchuanxettuyen.idtruong', $request->integer('idtruong'));
+            if ($request->filled('manganh')) $q->where('diemchuanxettuyen.manganh', $request->string('manganh'));
+            if ($request->filled('nam')) $q->where('diemchuanxettuyen.namxettuyen', $request->integer('nam'));
+            if ($request->filled('tohop')) $q->where('diemchuanxettuyen.tohopmon', 'like', '%'.$request->string('tohop').'%');
+            if ($request->filled('idxettuyen')) {
+                $idxettuyen = (int) $request->input('idxettuyen');
+                if ($idxettuyen >= 1 && $idxettuyen <= 4) {
+                    $q->where('diemchuanxettuyen.idxettuyen', $idxettuyen);
                 }
-            });
+            }
+            // If manganh is provided, we don't need to search by tennganh in keyword
+            // Only search in tentruong and tohopmon
+            if ($request->filled('keyword')) {
+                $kw = '%'.$request->string('keyword')->trim().'%';
+                $hasManganh = $request->filled('manganh');
+                $q->where(function($query) use ($kw, $hasManganh) {
+                    $query->where('truongdaihoc.tentruong', 'like', $kw)
+                          ->orWhere('diemchuanxettuyen.tohopmon', 'like', $kw);
+                    // Only search in tennganh if manganh is not provided
+                    if (!$hasManganh) {
+                        $query->orWhere('nganhhoc.tennganh', 'like', $kw);
+                    }
+                });
+            }
+            
+            return response()->json(
+                $q->orderByDesc('diemchuanxettuyen.namxettuyen')
+                  ->simplePaginate((int) $request->integer('perPage', 20))
+            );
+        } catch (\Throwable $e) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Query failed',
+                'error' => $e->getMessage()
+            ], 500);
         }
-        
-        return response()->json($q->orderByDesc('diemchuanxettuyen.namxettuyen')->paginate((int) $request->integer('perPage', 20)));
     }
 
     /**

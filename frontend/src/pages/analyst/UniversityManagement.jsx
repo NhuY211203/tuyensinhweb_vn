@@ -83,20 +83,17 @@ export default function UniversityManagement() {
   const loadUniversities = async (page = 1, search = "") => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        per_page: "20",
-        ...(search && { search })
-      });
-      
-      const response = await fetch(`http://localhost:8000/api/admin/truongdaihoc?${params}`);
-      const data = await response.json();
-      
+      const params = {
+        page,
+        per_page: 20,
+        ...(search && { search }),
+      };
+      const data = await api.get('/admin/truongdaihoc', params);
       if (data.success) {
         setUniversities(data.data);
-        setTotalPages(data.pagination.last_page);
-        setTotalRecords(data.pagination.total);
-        setCurrentPage(data.pagination.current_page);
+        setTotalPages(data.pagination?.last_page || 1);
+        setTotalRecords(data.pagination?.total || 0);
+        setCurrentPage(data.pagination?.current_page || 1);
       } else {
         showToast("Lỗi khi tải dữ liệu", "error");
       }
@@ -114,8 +111,7 @@ export default function UniversityManagement() {
       const params = new URLSearchParams();
       if (searchTerm) params.append("search", searchTerm);
       
-      const response = await fetch(`http://localhost:8000/api/admin/truongdaihoc/export?${params}`);
-      const data = await response.json();
+      const data = await api.get('/admin/truongdaihoc/export', Object.fromEntries(params));
       
       if (data.success) {
         // Convert to CSV
@@ -264,21 +260,19 @@ export default function UniversityManagement() {
         motantuong: formData.motantuong.trim() || null
       };
       
-      const url = editingUniversity 
-        ? `http://localhost:8000/api/admin/truongdaihoc/${editingUniversity.idtruong}`
-        : "http://localhost:8000/api/admin/truongdaihoc";
-      
-      const method = editingUniversity ? "PUT" : "POST";
-      
-      const response = await fetch(url, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(submitData)
-      });
-      
-      const data = await response.json();
+      const endpoint = editingUniversity 
+        ? `/admin/truongdaihoc/${editingUniversity.idtruong}`
+        : '/admin/truongdaihoc';
+      let data;
+      if (editingUniversity) {
+        // InfinityFree chặn PUT: dùng POST + _method=PUT
+        const form = new FormData();
+        form.append('_method', 'PUT');
+        Object.entries(submitData).forEach(([k,v])=> form.append(k, v ?? ''));
+        data = await api.request(endpoint, { method: 'POST', body: form, headers: {} });
+      } else {
+        data = await api.post(endpoint, submitData);
+      }
       
       if (data.success) {
         const successMessage = editingUniversity 
@@ -322,11 +316,14 @@ export default function UniversityManagement() {
     
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:8000/api/admin/truongdaihoc/${deleteId}`, {
-        method: "DELETE"
+      // InfinityFree chặn DELETE, dùng POST + _method=DELETE
+      const form = new FormData();
+      form.append('_method', 'DELETE');
+      const data = await api.request(`/admin/truongdaihoc/${deleteId}`, {
+        method: 'POST',
+        body: form,
+        headers: {},
       });
-      
-      const data = await response.json();
       
       if (data.success) {
         showToast("Xóa trường đại học thành công", "success");
@@ -356,15 +353,15 @@ export default function UniversityManagement() {
     
     setLoading(true);
     try {
-      const response = await fetch("http://localhost:8000/api/admin/truongdaihoc/bulk", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({ ids: selectedIds })
+      // Tránh CORS/403 trên InfinityFree: dùng POST + _method=DELETE và FormData
+      const form = new FormData();
+      form.append('_method', 'DELETE');
+      selectedIds.forEach(id => form.append('ids[]', id));
+      const data = await api.request('/admin/truongdaihoc/bulk', {
+        method: 'POST',
+        body: form,
+        headers: {},
       });
-      
-      const data = await response.json();
       
       if (data.success) {
         showToast(data.message || "Xóa thành công", "success");
@@ -379,6 +376,7 @@ export default function UniversityManagement() {
       setLoading(false);
     }
   };
+
 
   // Reset form
   const resetForm = () => {
@@ -512,7 +510,17 @@ export default function UniversityManagement() {
       };
       let res;
       if (introRecordId) {
-        res = await api.updateSchoolIntroduction(introRecordId, payload);
+        // InfinityFree chặn PUT: dùng POST + _method=PUT với FormData
+        const form = new FormData();
+        form.append('_method', 'PUT');
+        Object.entries({ idtruong: introUniversity.idtruong, ...introData }).forEach(([k, v]) => {
+          form.append(k, v ?? '');
+        });
+        res = await api.request(`/gioi-thieu-truong/${introRecordId}`, {
+          method: 'POST',
+          body: form,
+          headers: {},
+        });
       } else {
         res = await api.createSchoolIntroduction(payload);
       }
@@ -540,7 +548,14 @@ export default function UniversityManagement() {
     if (!window.confirm("Bạn có chắc chắn muốn xóa thông tin giới thiệu trường này?")) return;
     setIntroLoading(true);
     try {
-      const res = await api.deleteSchoolIntroduction(introRecordId);
+      // InfinityFree chặn DELETE: dùng POST + _method=DELETE với FormData
+      const form = new FormData();
+      form.append('_method', 'DELETE');
+      const res = await api.request(`/gioi-thieu-truong/${introRecordId}`, {
+        method: 'POST',
+        body: form,
+        headers: {},
+      });
       if (res?.success) {
         showToast("Xóa giới thiệu trường thành công", "success");
         setIntroRecordId(null);
@@ -583,12 +598,7 @@ export default function UniversityManagement() {
       const formData = new FormData();
       formData.append("file", file);
 
-      const response = await fetch("http://localhost:8000/api/chat-support/upload-file", {
-        method: "POST",
-        body: formData,
-      });
-
-      const data = await response.json();
+      const data = await api.request('/chat-support/upload-file', { method: 'POST', body: formData, headers: {} });
       if (data.success && data.data?.url) {
         setIntroData((prev) => ({
           ...prev,
@@ -626,8 +636,7 @@ export default function UniversityManagement() {
         ...(idtruong && { idtruong })
       });
       
-      const response = await fetch(`http://localhost:8000/api/admin/cosotruong?${params}`);
-      const data = await response.json();
+      const data = await api.get('/admin/cosotruong', Object.fromEntries(params));
       
       if (data.success) {
         setFacilities(data.data);
@@ -714,21 +723,20 @@ export default function UniversityManagement() {
         diachi_coso: facilityFormData.diachi_coso.trim()
       };
       
-      const url = editingFacility 
-        ? `http://localhost:8000/api/admin/cosotruong/${editingFacility.id}`
-        : "http://localhost:8000/api/admin/cosotruong";
+      const endpoint = editingFacility 
+        ? `/admin/cosotruong/${editingFacility.id}`
+        : "/admin/cosotruong";
       
-      const method = editingFacility ? "PUT" : "POST";
-      
-      const response = await fetch(url, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(submitData)
-      });
-      
-      const data = await response.json();
+      let data;
+      if (editingFacility) {
+        // InfinityFree chặn PUT: dùng POST + _method=PUT
+        const form = new FormData();
+        form.append('_method', 'PUT');
+        Object.entries(submitData).forEach(([k,v])=> form.append(k, v ?? ''));
+        data = await api.request(endpoint, { method: 'POST', body: form, headers: {} });
+      } else {
+        data = await api.post(endpoint, submitData);
+      }
       
       if (data.success) {
         const successMessage = editingFacility 
@@ -768,11 +776,7 @@ export default function UniversityManagement() {
     
     setFacilitiesLoading(true);
     try {
-      const response = await fetch(`http://localhost:8000/api/admin/cosotruong/${deleteFacilityId}`, {
-        method: "DELETE"
-      });
-      
-      const data = await response.json();
+      const data = await api.delete(`/admin/cosotruong/${deleteFacilityId}`);
       
       if (data.success) {
         showToast("Xóa cơ sở thành công", "success");
@@ -801,15 +805,11 @@ export default function UniversityManagement() {
     
     setFacilitiesLoading(true);
     try {
-      const response = await fetch("http://localhost:8000/api/admin/cosotruong/bulk", {
-        method: "DELETE",
-        headers: {
-          "Content-Type": "application/json",
-        },
+      const data = await api.request('/admin/cosotruong/bulk', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ ids: selectedFacilityIds })
       });
-      
-      const data = await response.json();
       
       if (data.success) {
         showToast(data.message || "Xóa thành công", "success");
@@ -961,8 +961,7 @@ export default function UniversityManagement() {
                   try {
                     const form = new FormData();
                     form.append('file', file);
-                    const res = await fetch('http://localhost:8000/api/admin/truongdaihoc/import', { method: 'POST', body: form });
-                    const data = await res.json();
+                    const data = await api.request('/admin/truongdaihoc/import', { method: 'POST', body: form, headers: {} });
                     if (data.success) {
                       const s = data.summary || {};
                       showToast(`Nhập CSV thành công: thêm ${s.created||0}, cập nhật ${s.updated||0}, lỗi ${s.failed||0}`, 'success');

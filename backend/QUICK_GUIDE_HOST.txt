@@ -1,0 +1,240 @@
+================================================================================
+ZALOPAY SETUP TRÊN HOST - HƯỚNG DẪN NHANH (5 PHÚT)
+================================================================================
+
+🎯 MỤC TIÊU: Cấu hình ZaloPay thanh toán trên host 42web.io
+
+⏱️ THỜI GIAN: 5-10 phút
+
+================================================================================
+BƯỚC 1: ĐĂNG NHẬP CPANEL (1 phút)
+================================================================================
+
+1. Mở: https://hoahoctro.42web.io:2083
+2. Nhập username + password
+3. Click "Log in"
+
+
+================================================================================
+BƯỚC 2: MỞ FILE MANAGER (30 giây)
+================================================================================
+
+1. Tìm "File Manager" trong cPanel
+2. Click vào
+3. Chọn "Home Directory"
+4. Click "Go"
+
+
+================================================================================
+BƯỚC 3: NAVIGATE ĐẾN /laravel/ (30 giây)
+================================================================================
+
+1. Tìm thư mục "laravel"
+2. Double-click để mở
+
+
+================================================================================
+BƯỚC 4: TẠO FILE .env (2 phút)
+================================================================================
+
+Cách nhanh nhất:
+
+1. Click chuột phải vào không gian trống
+2. Chọn "Create New File"
+3. Nhập: .env
+4. Click "Create New File"
+5. Click chuột phải vào .env
+6. Chọn "Edit"
+7. Copy nội dung dưới đây:
+
+---BEGIN---
+APP_NAME=TuyenSinhWeb
+APP_ENV=production
+APP_KEY=base64:your_app_key_here
+APP_DEBUG=false
+APP_URL=https://hoahoctro.42web.io/laravel
+
+DB_CONNECTION=mysql
+DB_HOST=localhost
+DB_PORT=3306
+DB_DATABASE=your_database_name
+DB_USERNAME=your_db_username
+DB_PASSWORD=your_db_password
+
+ZALOPAY_APP_ID=2553
+ZALOPAY_KEY1=PcY4iZIKFCIDz50pIrXrHD8gJ2WTvMAu9ajQrDJ142SoYvTtQBJ4bIct7p7XH6ix
+ZALOPAY_KEY2=trMrHm9yP6yP8O87iC6cq5ESxTEn6m3fIcfP2saGgQG1DQu4GiS9pG8S9thj1xgJ
+ZALOPAY_ENDPOINT=https://sb-openapi.zalopay.vn/v2/create
+ZALOPAY_CALLBACK_URL=https://hoahoctro.42web.io/laravel/public/api/payments/zalopay/callback
+
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.mailtrap.io
+MAIL_PORT=2525
+MAIL_USERNAME=your_username
+MAIL_PASSWORD=your_password
+MAIL_ENCRYPTION=tls
+MAIL_FROM_ADDRESS=noreply@example.com
+MAIL_FROM_NAME="${APP_NAME}"
+
+CACHE_DRIVER=file
+SESSION_DRIVER=file
+SESSION_LIFETIME=120
+QUEUE_CONNECTION=sync
+---END---
+
+8. Dán vào editor
+9. Thay thế:
+   - your_database_name → tên database thực
+   - your_db_username → username MySQL thực
+   - your_db_password → password MySQL thực
+10. Click "Save Changes"
+
+
+================================================================================
+BƯỚC 5: ĐẶT QUYỀN FILE (30 giây)
+================================================================================
+
+1. Click chuột phải vào .env
+2. Chọn "Change Permissions"
+3. Nhập: 644
+4. Click "Change Permissions"
+
+
+================================================================================
+BƯỚC 6: CLEAR CACHE (1 phút)
+================================================================================
+
+Cách 1: Dùng Terminal
+-----------
+1. Trong cPanel, tìm "Terminal"
+2. Click vào
+3. Chạy lệnh:
+   cd /home/username/public_html/laravel
+   (Thay "username" bằng tên đăng nhập cPanel)
+4. Chạy:
+   php artisan config:cache
+5. Chạy:
+   php artisan config:clear
+
+Cách 2: Nếu không có Terminal
+-----------
+1. Tạo file: /laravel/public/clear.php
+2. Nội dung:
+   <?php
+   shell_exec('cd /home/username/public_html/laravel && php artisan config:cache');
+   shell_exec('cd /home/username/public_html/laravel && php artisan config:clear');
+   echo "Done!";
+   ?>
+3. Truy cập: https://hoahoctro.42web.io/laravel/public/clear.php
+4. Xóa file clear.php
+
+
+================================================================================
+BƯỚC 7: KIỂM TRA (30 giây)
+================================================================================
+
+1. Mở: https://hoahoctro.42web.io/laravel/public/api/debug/zalopay-config
+2. Nếu thấy tất cả ✅ → OK!
+3. Nếu có ❌ → Kiểm tra lại .env
+
+
+================================================================================
+BƯỚC 8: CẤU HÌNH ZALOPAY DASHBOARD (1 phút)
+================================================================================
+
+1. Mở: https://business.zalopay.vn
+2. Đăng nhập
+3. Vào Settings → Webhook
+4. Thêm URL: https://hoahoctro.42web.io/laravel/public/api/payments/zalopay/callback
+5. Click "Save"
+
+
+================================================================================
+BƯỚC 9: TEST (1 phút)
+================================================================================
+
+1. Mở: https://hoahoctro.42web.io/app/dashboard/appointments
+2. Click "Thanh toán"
+3. Click "Thanh toán ngay"
+4. QR code hiển thị → ✅ OK!
+5. Scan với ZaloPay
+6. Hoàn thành thanh toán
+7. Booking được tạo → ✅ THÀNH CÔNG!
+
+
+================================================================================
+LỖI & GIẢI PHÁP NHANH
+================================================================================
+
+❌ Lỗi: "Dữ liệu yêu cầu không hợp lệ"
+✅ Giải pháp:
+   1. Kiểm tra .env tồn tại
+   2. Chạy: php artisan config:cache
+   3. Refresh browser
+
+❌ Lỗi: "Permission denied"
+✅ Giải pháp:
+   1. Kiểm tra quyền .env: 644
+   2. Kiểm tra quyền /laravel/: 755
+
+❌ Lỗi: "Database connection failed"
+✅ Giải pháp:
+   1. Kiểm tra DB_DATABASE, DB_USERNAME, DB_PASSWORD
+   2. Chạy: php artisan config:cache
+
+❌ Lỗi: "Không thấy QR code"
+✅ Giải pháp:
+   1. Kiểm tra logs: /laravel/storage/logs/laravel.log
+   2. Kiểm tra: /api/debug/zalopay-config
+
+
+================================================================================
+THÔNG TIN CẦN BIẾT
+================================================================================
+
+Database:
+- Tìm trong cPanel → MySQL Databases
+- Ghi lại: database name, username, password
+
+ZaloPay:
+- App ID: 2553
+- Key 1 & 2: Lấy từ https://business.zalopay.vn
+- Callback URL: https://hoahoctro.42web.io/laravel/public/api/payments/zalopay/callback
+
+Host:
+- Domain: hoahoctro.42web.io
+- Laravel path: /laravel/
+- Public path: /laravel/public/
+
+
+================================================================================
+CHECKLIST
+================================================================================
+
+[ ] Tạo file .env
+[ ] Thêm ZaloPay credentials
+[ ] Thêm database info
+[ ] Đặt quyền: 644
+[ ] Clear cache
+[ ] Kiểm tra: /api/debug/zalopay-config
+[ ] Cấu hình callback URL
+[ ] Test thanh toán
+
+
+================================================================================
+HOÀN THÀNH!
+================================================================================
+
+Nếu tất cả các bước hoàn thành:
+✅ ZaloPay payment sẵn sàng
+✅ Có thể thanh toán
+✅ Booking tự động được tạo
+
+Nếu gặp vấn đề:
+1. Kiểm tra logs
+2. Kiểm tra cấu hình
+3. Liên hệ support
+
+
+================================================================================
+

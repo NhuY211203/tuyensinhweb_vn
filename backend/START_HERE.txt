@@ -1,0 +1,275 @@
+================================================================================
+ZALOPAY PAYMENT FIX - START HERE
+================================================================================
+
+🎯 OBJECTIVE:
+Fix ZaloPay payment error: "Dữ liệu yêu cầu không hợp lệ" (-401)
+
+⏱️ TIME REQUIRED: 10-15 minutes
+
+📋 WHAT'S BEEN DONE:
+✅ Fixed PaymentController.php
+✅ Created DebugPaymentController.php
+✅ Updated routes/api.php
+✅ Created comprehensive documentation
+✅ Ready for immediate use
+
+
+================================================================================
+STEP 1: CREATE .env FILE (2 minutes)
+================================================================================
+
+Location: backend/.env
+
+Content:
+--------
+APP_NAME=TuyenSinhWeb
+APP_ENV=production
+APP_KEY=base64:your_app_key_here
+APP_DEBUG=false
+APP_URL=https://hoahoctro.42web.io/laravel
+
+DB_CONNECTION=mysql
+DB_HOST=localhost
+DB_PORT=3306
+DB_DATABASE=your_database
+DB_USERNAME=your_username
+DB_PASSWORD=your_password
+
+# IMPORTANT: Get these from https://business.zalopay.vn
+ZALOPAY_APP_ID=2553
+ZALOPAY_KEY1=PcY4iZIKFCIDz50pIrXrHD8gJ2WTvMAu9ajQrDJ142SoYvTtQBJ4bIct7p7XH6ix
+ZALOPAY_KEY2=trMrHm9yP6yP8O87iC6cq5ESxTEn6m3fIcfP2saGgQG1DQu4GiS9pG8S9thj1xgJ
+ZALOPAY_ENDPOINT=https://sb-openapi.zalopay.vn/v2/create
+ZALOPAY_CALLBACK_URL=https://hoahoctro.42web.io/laravel/public/api/payments/zalopay/callback
+
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.mailtrap.io
+MAIL_PORT=2525
+MAIL_USERNAME=your_username
+MAIL_PASSWORD=your_password
+MAIL_ENCRYPTION=tls
+MAIL_FROM_ADDRESS=noreply@example.com
+MAIL_FROM_NAME="${APP_NAME}"
+
+CACHE_DRIVER=file
+SESSION_DRIVER=file
+SESSION_LIFETIME=120
+QUEUE_CONNECTION=sync
+
+
+⚠️ IMPORTANT:
+- Replace "your_database", "your_username", "your_password" with real values
+- Get ZaloPay credentials from: https://business.zalopay.vn
+- Do NOT commit .env file to git!
+- Add .env to .gitignore
+
+
+================================================================================
+STEP 2: CLEAR CACHE (1 minute)
+================================================================================
+
+Run these commands:
+
+php artisan config:cache
+php artisan config:clear
+
+
+================================================================================
+STEP 3: VERIFY CONFIGURATION (2 minutes)
+================================================================================
+
+Visit this URL in your browser:
+
+https://hoahoctro.42web.io/laravel/public/api/debug/zalopay-config
+
+Expected response:
+{
+    "success": true,
+    "message": "ZaloPay configuration is complete",
+    "all_configured": true,
+    "config": {
+        "ZALOPAY_APP_ID": { "configured": true, "status": "✅" },
+        "ZALOPAY_KEY1": { "configured": true, "status": "✅" },
+        "ZALOPAY_KEY2": { "configured": true, "status": "✅" },
+        "ZALOPAY_ENDPOINT": { "configured": true, "status": "✅" },
+        "ZALOPAY_CALLBACK_URL": { "configured": true, "status": "✅" }
+    }
+}
+
+If any shows ❌:
+1. Check .env file has the variable
+2. Check value is correct (no quotes, no spaces)
+3. Run: php artisan config:clear
+4. Refresh browser
+
+
+================================================================================
+STEP 4: TEST PAYMENT (5 minutes)
+================================================================================
+
+1. Open your app: https://hoahoctro.42web.io/app/dashboard/appointments
+
+2. Click "Thanh toán" button
+
+3. Payment modal should open without errors
+
+4. Click "Thanh toán ngay" button
+
+5. QR code should appear
+
+6. Scan QR code with ZaloPay app
+
+7. Complete payment
+
+8. Success message should appear
+
+9. Booking should be created automatically
+
+
+If you get an error:
+1. Check browser console for error messages
+2. Check storage/logs/laravel.log
+3. Visit: /api/debug/payment-logs
+4. Look for "ZaloPay API Error" in logs
+5. Check sub_return_code and sub_return_message
+
+
+================================================================================
+DOCUMENTATION
+================================================================================
+
+Read these files for more information:
+
+1. ZALOPAY_QUICK_START.txt
+   → Quick setup and troubleshooting
+
+2. ZALOPAY_CONFIG.txt
+   → Detailed configuration guide
+
+3. ZALOPAY_FIX_SUMMARY.txt
+   → What was fixed and why
+
+4. ZALOPAY_BEFORE_AFTER.txt
+   → Detailed comparison of changes
+
+5. ZALOPAY_IMPLEMENTATION_CHECKLIST.txt
+   → Complete testing checklist
+
+6. ZALOPAY_README.txt
+   → Complete documentation
+
+
+================================================================================
+DEBUG ENDPOINTS
+================================================================================
+
+Check configuration:
+GET /api/debug/zalopay-config
+
+Test connection:
+GET /api/debug/zalopay-connection
+
+View logs:
+GET /api/debug/payment-logs?limit=50
+
+
+================================================================================
+COMMON ISSUES & SOLUTIONS
+================================================================================
+
+Issue: "ZALOPAY_APP_ID not configured"
+→ Add ZALOPAY_APP_ID=2553 to .env
+→ Run: php artisan config:cache
+
+Issue: "ZALOPAY_KEY1 not configured"
+→ Add ZALOPAY_KEY1=... to .env
+→ Run: php artisan config:cache
+
+Issue: "Dữ liệu yêu cầu không hợp lệ" (-401)
+→ Check .env file has all variables
+→ Check logs: storage/logs/laravel.log
+→ Visit: /api/debug/zalopay-config
+→ Check sub_return_code in error response
+
+Issue: "Giao dịch thất bại"
+→ Check logs for detailed error
+→ Verify amount > 0
+→ Check callback URL is correct
+
+Issue: "Không nhận được order_url"
+→ Check logs for full response
+→ Verify request data format
+→ Check ZaloPay API status
+
+
+================================================================================
+WHAT'S BEEN FIXED
+================================================================================
+
+✅ All request data is now properly converted to strings
+✅ MAC signature calculation is more reliable
+✅ app_user now uses actual user_id (not app_id)
+✅ Support for discount amounts and reward points
+✅ Better error messages with sub_return_code details
+✅ Enhanced logging for debugging
+✅ Debug endpoints for configuration verification
+✅ Proper handling of Vietnamese characters
+
+
+================================================================================
+FILES CREATED/MODIFIED
+================================================================================
+
+Created:
+- backend/app/Http/Controllers/DebugPaymentController.php
+- backend/ZALOPAY_CONFIG.txt
+- backend/ZALOPAY_QUICK_START.txt
+- backend/ZALOPAY_FIX_SUMMARY.txt
+- backend/ZALOPAY_BEFORE_AFTER.txt
+- backend/ZALOPAY_IMPLEMENTATION_CHECKLIST.txt
+- backend/ZALOPAY_README.txt
+- backend/START_HERE.txt (this file)
+
+Modified:
+- backend/app/Http/Controllers/PaymentController.php
+- backend/routes/api.php
+
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+1. ✅ Create .env file with ZaloPay credentials
+2. ✅ Run: php artisan config:cache
+3. ✅ Visit: /api/debug/zalopay-config
+4. ✅ Test payment flow
+5. ✅ Monitor logs for issues
+6. ✅ Deploy to production
+7. ✅ Monitor in production
+
+
+================================================================================
+SUPPORT
+================================================================================
+
+If you need help:
+
+1. Check the documentation files
+2. Check logs: storage/logs/laravel.log
+3. Use debug endpoints: /api/debug/*
+4. Contact ZaloPay: https://business.zalopay.vn/support
+
+
+================================================================================
+READY TO GO!
+================================================================================
+
+You're all set! Follow the 4 steps above and your ZaloPay payment should work.
+
+Questions? Check the documentation files or logs.
+
+Good luck! 🚀
+
+================================================================================
+

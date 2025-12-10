@@ -4,6 +4,7 @@ import api from "../../services/api";
 import Modal from "../../components/Modal";
 import Toast from "../../components/Toast";
 
+
 export default function AdmissionProjectMethods() {
   const { id } = useParams(); // idde_an
   const navigate = useNavigate();

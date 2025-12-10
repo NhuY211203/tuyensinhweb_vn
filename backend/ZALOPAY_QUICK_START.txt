@@ -1,0 +1,237 @@
+================================================================================
+ZALOPAY PAYMENT - QUICK START GUIDE
+================================================================================
+
+STEP 1: CREATE .env FILE
+------------------------
+
+Create file: backend/.env
+
+Content:
+--------
+APP_NAME=TuyenSinhWeb
+APP_ENV=production
+APP_KEY=base64:your_app_key_here
+APP_DEBUG=false
+APP_URL=https://hoahoctro.42web.io/laravel
+
+DB_CONNECTION=mysql
+DB_HOST=localhost
+DB_PORT=3306
+DB_DATABASE=your_database
+DB_USERNAME=your_username
+DB_PASSWORD=your_password
+
+# IMPORTANT: Get these from https://business.zalopay.vn
+ZALOPAY_APP_ID=2553
+ZALOPAY_KEY1=PcY4iZIKFCIDz50pIrXrHD8gJ2WTvMAu9ajQrDJ142SoYvTtQBJ4bIct7p7XH6ix
+ZALOPAY_KEY2=trMrHm9yP6yP8O87iC6cq5ESxTEn6m3fIcfP2saGgQG1DQu4GiS9pG8S9thj1xgJ
+ZALOPAY_ENDPOINT=https://sb-openapi.zalopay.vn/v2/create
+ZALOPAY_CALLBACK_URL=https://hoahoctro.42web.io/laravel/public/api/payments/zalopay/callback
+
+MAIL_MAILER=smtp
+MAIL_HOST=smtp.mailtrap.io
+MAIL_PORT=2525
+MAIL_USERNAME=your_username
+MAIL_PASSWORD=your_password
+MAIL_ENCRYPTION=tls
+MAIL_FROM_ADDRESS=noreply@example.com
+MAIL_FROM_NAME="${APP_NAME}"
+
+CACHE_DRIVER=file
+SESSION_DRIVER=file
+SESSION_LIFETIME=120
+QUEUE_CONNECTION=sync
+
+
+STEP 2: CLEAR CACHE
+-------------------
+
+Run these commands:
+
+php artisan config:cache
+php artisan config:clear
+
+
+STEP 3: VERIFY CONFIGURATION
+-----------------------------
+
+Visit this URL in browser:
+https://hoahoctro.42web.io/laravel/public/api/debug/zalopay-config
+
+Expected response:
+{
+    "success": true,
+    "message": "ZaloPay configuration is complete",
+    "all_configured": true,
+    "config": {
+        "ZALOPAY_APP_ID": { "configured": true, "status": "✅" },
+        "ZALOPAY_KEY1": { "configured": true, "status": "✅" },
+        "ZALOPAY_KEY2": { "configured": true, "status": "✅" },
+        "ZALOPAY_ENDPOINT": { "configured": true, "status": "✅" },
+        "ZALOPAY_CALLBACK_URL": { "configured": true, "status": "✅" }
+    }
+}
+
+If any shows ❌, check your .env file!
+
+
+STEP 4: TEST PAYMENT FLOW
+-------------------------
+
+1. Open your app: https://hoahoctro.42web.io/app/dashboard/appointments
+
+2. Click "Thanh toán" button
+
+3. Payment modal should open
+
+4. Click "Thanh toán ngay" button
+
+5. QR code should appear
+
+6. Scan with ZaloPay app and complete payment
+
+7. After payment, booking should be created automatically
+
+
+STEP 5: TROUBLESHOOTING
+-----------------------
+
+If you get error "Dữ liệu yêu cầu không hợp lệ":
+
+1. Check .env file exists and has all variables
+2. Run: php artisan config:cache
+3. Check logs: storage/logs/laravel.log
+4. Visit: https://hoahoctro.42web.io/laravel/public/api/debug/payment-logs
+5. Look for "ZaloPay API Error" in logs
+6. Check sub_return_code and sub_return_message
+
+Common issues:
+
+Issue: "ZALOPAY_APP_ID not configured"
+→ Add ZALOPAY_APP_ID=2553 to .env
+
+Issue: "ZALOPAY_KEY1 not configured"
+→ Add ZALOPAY_KEY1=... to .env
+
+Issue: "ZALOPAY_KEY2 not configured"
+→ Add ZALOPAY_KEY2=... to .env
+
+Issue: "Callback URL not configured"
+→ Add ZALOPAY_CALLBACK_URL=... to .env
+
+Issue: "Endpoint not configured"
+→ Add ZALOPAY_ENDPOINT=https://sb-openapi.zalopay.vn/v2/create to .env
+
+
+STEP 6: CONFIGURE ZALOPAY DASHBOARD
+-----------------------------------
+
+1. Login to https://business.zalopay.vn
+
+2. Go to Settings → Webhook
+
+3. Add callback URL:
+   https://hoahoctro.42web.io/laravel/public/api/payments/zalopay/callback
+
+4. Save configuration
+
+5. Test webhook (optional)
+
+
+IMPORTANT NOTES
+---------------
+
+✅ All ZaloPay credentials must be in .env file
+✅ Cache must be cleared after adding .env
+✅ Callback URL must be publicly accessible
+✅ Use debug endpoints to verify configuration
+✅ Check logs frequently during testing
+✅ All request data is automatically converted to strings
+✅ MAC signature is calculated automatically
+✅ Vietnamese characters are properly handled
+
+
+DEBUG ENDPOINTS
+---------------
+
+Check configuration:
+GET /api/debug/zalopay-config
+
+Test connection:
+GET /api/debug/zalopay-connection
+
+View logs:
+GET /api/debug/payment-logs?limit=50
+
+
+PAYMENT FLOW DIAGRAM
+--------------------
+
+User clicks "Thanh toán"
+         ↓
+Frontend sends request to:
+POST /api/payments/generate-zalopay-qr
+         ↓
+Backend creates payment record
+         ↓
+Backend calls ZaloPay API
+         ↓
+ZaloPay returns order_url
+         ↓
+Backend returns QR code to frontend
+         ↓
+User scans QR with ZaloPay app
+         ↓
+User completes payment in ZaloPay
+         ↓
+ZaloPay sends callback to:
+POST /api/payments/zalopay/callback
+         ↓
+Backend updates payment status
+         ↓
+Frontend detects payment success
+         ↓
+Booking is created automatically
+
+
+WHAT'S BEEN FIXED
+-----------------
+
+1. ✅ All request data is now properly converted to strings
+2. ✅ MAC signature calculation is more reliable
+3. ✅ app_user now uses actual user_id instead of app_id
+4. ✅ Support for discount amounts and reward points
+5. ✅ Better error messages with sub_return_code details
+6. ✅ Enhanced logging for debugging
+7. ✅ Debug endpoints for configuration verification
+8. ✅ Proper handling of Vietnamese characters
+
+
+NEXT STEPS
+----------
+
+1. Create .env file with ZaloPay credentials
+2. Run: php artisan config:cache
+3. Visit debug endpoint to verify
+4. Test payment flow
+5. Monitor logs for issues
+6. Adjust as needed
+
+
+FOR MORE HELP
+-------------
+
+Check these files:
+- ZALOPAY_CONFIG.txt (detailed setup)
+- ZALOPAY_FIX_SUMMARY.txt (technical details)
+- storage/logs/laravel.log (error logs)
+
+ZaloPay Documentation:
+https://docs.zalopay.vn
+
+ZaloPay Support:
+https://business.zalopay.vn/support
+
+================================================================================
+

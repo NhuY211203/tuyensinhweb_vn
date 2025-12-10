@@ -1,0 +1,526 @@
+erDiagram
+  %% ========== USERS & ROLES ==========
+  nguoidung {
+    int idnguoidung PK
+    int idvaitro
+    int idnhomnganh
+    varchar taikhoan
+    varchar matkhau
+    varchar email
+    varchar hoten
+    varchar sodienthoai
+    varchar diachi
+    date ngaysinh
+    varchar gioitinh
+    varchar trangthai
+    timestamp ngaytao
+    timestamp ngaycapnhat
+  }
+
+  vaitro {
+    int idvaitro PK
+    varchar tenvaitro
+    text mota
+  }
+
+  nhomnganh {
+    int idnhomnganh PK
+    varchar tennhom
+    text mota
+  }
+
+  %% ========== NOTIFICATIONS ==========
+  thongbao {
+    int idthongbao PK
+    varchar tieude
+    text noidung
+    int nguoitao_id
+    int idnguoinhan
+    datetime thoigiangui_dukien
+    varchar kieuguithongbao
+    timestamp ngaytao
+    timestamp ngaycapnhat
+  }
+
+  nguoinhanthongbao {
+    int id PK
+    int idthongbao
+    int idnguoinhan
+    int trangthai
+    timestamp ngaytao
+  }
+
+  %% ========== CHAT ==========
+  phongchat {
+    int idphongchat PK
+    varchar ten
+    int created_by
+    timestamp created_at
+  }
+
+  tinnhan {
+    int idtinnhan PK
+    int idphongchat
+    int idnguoidung
+    text noidung
+    timestamp created_at
+  }
+
+  phongchat_support {
+    int idphongchat_support PK
+    varchar ten
+    int created_by
+    timestamp created_at
+  }
+
+  tinnhan_support {
+    int idtinnhan_support PK
+    int idphongchat_support
+    int idnguoidung
+    text noidung
+    timestamp created_at
+  }
+
+  %% ========== UNIVERSITY, MAJORS, METHODS ==========
+  truongdaihoc {
+    int idtruong PK
+    varchar tentruong
+    varchar diachi
+    varchar website
+  }
+
+  cosotruong {
+    int idcoso PK
+    int idtruong
+    varchar tencoso
+    varchar diachi
+  }
+
+  nganhhoc {
+    varchar manganh PK
+    varchar tennganh
+    text mota
+  }
+
+  nganh_truong {
+    int idnganhtruong PK
+    int idtruong
+    varchar manganh
+    int nam
+    varchar hinhthuc
+    int thoiluong_nam
+    text mota_tomtat
+  }
+
+  tohopxettuyen {
+    int idtohop PK
+    varchar matohop
+    varchar tentohop
+  }
+
+  ptxt {
+    int idxettuyen PK
+    varchar tenptxt
+    text mota
+  }
+
+  phuongthucxettuyen {
+    int idxettuyen PK
+    varchar tenptxt
+    text mota
+  }
+
+  phuongthuctuyensinhchitiet {
+    int id PK
+    int idxettuyen
+    int idnganhtruong
+    text mota
+  }
+
+  thongtintuyensinh {
+    int id PK
+    int idtruong
+    int idnganhtruong
+    int idxettuyen
+    int namxettuyen
+    int trangthai
+  }
+
+  quychexettuyen {
+    int idquyche PK
+    int idtruong
+    int idnganhtruong
+    int idxettuyen
+    int nam_ap_dung
+    text noidung
+  }
+
+  gioithieutruong {
+    int idgioithieu PK
+    int idtruong
+    text noidung
+  }
+
+  deantuyensinh {
+    int iddean PK
+    int idtruong
+    int nam
+    text mota
+  }
+
+  filedeantuyensinh {
+    int idfile PK
+    int iddean
+    varchar tenfile
+    varchar duongdan
+  }
+
+  dieukientuyensinh {
+    int iddieukien PK
+    int idtruong
+    int idnganhtruong
+    text noidung
+  }
+
+  nganh_theo_phuong_thuc {
+    int id PK
+    int idnganhtruong
+    int idxettuyen
+  }
+
+  diemchuandexettuyen {
+    int iddiemchuan PK
+    int idnganhtruong
+    int nam
+    float diemchuan
+  }
+
+  %% ========== ADMISSIONS PROFILE ==========
+  hoso_xettuyen {
+    int idhoso PK
+    int idnguoidung
+    int idnganhtruong
+    int idxettuyen
+    int nam
+    varchar trangthai
+    timestamp ngaytao
+    timestamp ngaycapnhat
+  }
+
+  thanhtoan {
+    int idthanhtoan PK
+    int idnguoidung
+    int idhoso
+    float sotien
+    varchar trangthai
+    timestamp created_at
+  }
+
+  %% ========== SCORING (HỌC BẠ / TỐT NGHIỆP) ==========
+  monhoc {
+    int idmonhoc PK
+    varchar tenmon
+  }
+
+  diemhocba {
+    int iddiemhb PK
+    int idnguoidung
+    int idmonhoc
+    float diem
+    int hocky
+    int namhoc
+  }
+
+  ketquatinhdiemhocba {
+    int idkqhb PK
+    int idnguoidung
+    float tongdiem
+    text chitiet
+  }
+
+  cauhinhmonnhanheso {
+    int id PK
+    int idtruong
+    int idxettuyen
+    int idmonhoc
+    float heso
+  }
+
+  doituonguutien {
+    int iddoituong PK
+    varchar tendoituong
+    float diemcong
+  }
+
+  khuvucuutien {
+    int idkhuvuc PK
+    varchar tenkhuvuc
+    float diemcong
+  }
+
+  quydinhdiemuutien {
+    int id PK
+    int idtruong
+    int nam
+    text noidung
+  }
+
+  quydinhdiemuutien_dean {
+    int id PK
+    int iddean
+    text noidung
+  }
+
+  bangquydoidiemngoaingu {
+    int id PK
+    varchar chungkhoan
+    float diemquydoi
+  }
+
+  monthi_totnghiep {
+    int id PK
+    varchar tenmon
+  }
+
+  diemthi_totnghiep {
+    int id PK
+    int idnguoidung
+    int nam
+    float tongdiem
+  }
+
+  diemmon_totnghiep {
+    int id PK
+    int iddiemthi
+    int idmon
+    float diem
+  }
+
+  chitiet_diemthi_totnghiep {
+    int id PK
+    int iddiemthi
+    text chitiet
+  }
+
+  ketquatinhdiem_totnghiep {
+    int id PK
+    int idnguoidung
+    float tongdiem
+    text chitiet
+  }
+
+  %% ========== CONSULTATION / SCHEDULING ==========
+  lichtuvan {
+    int idlich PK
+    int idnguoidung
+    datetime batdau
+    datetime ketthuc
+    varchar trangthai
+  }
+
+  danhgia_lichtuvan {
+    int iddanhgia PK
+    int idlich
+    int idnguoidung
+    int sao
+    text nhanxet
+  }
+
+  ghichu_buoituvan {
+    int idghichu PK
+    int idlich
+    int idnguoidung
+    text noidung
+  }
+
+  tep_minhchung_buoituvan {
+    int idtep PK
+    int idlich
+    varchar tenfile
+    varchar duongdan
+  }
+
+  yeucau_doilich {
+    int idyc PK
+    int idlich
+    int idnguoidung
+    text lydo
+    varchar trangthai
+  }
+
+  thongbao_lich {
+    int id PK
+    int idlich
+    int idnguoidung
+    varchar trangthai
+  }
+
+  %% ========== NEWS ==========
+  tintuyensinh {
+    int idtin PK
+    int idtruong
+    varchar tieude
+    text noidung
+    timestamp created_at
+  }
+
+  %% ========== DGNL (Đánh giá năng lực) ==========
+  kythi_dgnl {
+    int idkythi PK
+    varchar makythi
+    varchar tenkythi
+    varchar to_chuc
+    int so_cau
+    int thoi_luong_phut
+    varchar hinh_thuc
+    text mo_ta_tong_quat
+    text ghi_chu
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  kythi_dgnl_sections {
+    int idsection PK
+    int idkythi
+    varchar ma_section
+    varchar ten_section
+    varchar nhom_nang_luc
+    int so_cau
+    int thoi_luong_phut
+    int thu_tu
+    text mo_ta
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  kythi_dgnl_questions {
+    int idquestion PK
+    int idsection
+    text noi_dung
+    varchar loai_cau
+    int thu_tu
+    varchar do_kho
+    float diem_mac_dinh
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  kythi_dgnl_options {
+    int idoption PK
+    int idquestion
+    text noi_dung
+    boolean is_correct
+    int thu_tu
+    text loi_giai
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  kythi_dgnl_topics {
+    int idtopic PK
+    int idsection
+    varchar ten_chu_de
+    text mo_ta
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  kythi_dgnl_attempts {
+    int idattempt PK
+    int idkythi
+    int idnguoidung
+    float tong_diem
+    int tong_so_cau
+    int tong_cau_dung
+    varchar trang_thai
+    text nhan_xet
+    timestamp completed_at
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  kythi_dgnl_attempt_details {
+    int idattempt_detail PK
+    int idattempt
+    int idquestion
+    text selected_option_ids
+    text cau_tra_loi_tu_luan
+    float diem
+    boolean is_correct
+    timestamp created_at
+    timestamp updated_at
+  }
+
+  %% ========== RELATIONSHIPS ==========
+  vaitro ||--o{ nguoidung : idvaitro
+  nhomnganh ||--o{ nguoidung : idnhomnganh
+
+  nguoidung ||--o{ thongbao : nguoitao_id
+  nguoidung ||--o{ thongbao : idnguoinhan
+  thongbao ||--o{ nguoinhanthongbao : idthongbao
+  nguoidung ||--o{ nguoinhanthongbao : idnguoinhan
+
+  nguoidung ||--o{ phongchat : created_by
+  phongchat ||--o{ tinnhan : idphongchat
+  nguoidung ||--o{ tinnhan : idnguoidung
+  nguoidung ||--o{ phongchat_support : created_by
+  phongchat_support ||--o{ tinnhan_support : idphongchat_support
+  nguoidung ||--o{ tinnhan_support : idnguoidung
+
+  truongdaihoc ||--o{ cosotruong : idtruong
+  truongdaihoc ||--o{ nganh_truong : idtruong
+  nganhhoc ||--o{ nganh_truong : manganh
+  truongdaihoc ||--o{ thongtintuyensinh : idtruong
+  nganh_truong ||--o{ thongtintuyensinh : idnganhtruong
+  ptxt ||--o{ thongtintuyensinh : idxettuyen
+  phuongthucxettuyen ||--o{ phuongthuctuyensinhchitiet : idxettuyen
+  nganh_truong ||--o{ phuongthuctuyensinhchitiet : idnganhtruong
+  truongdaihoc ||--o{ quychexettuyen : idtruong
+  nganh_truong ||--o{ quychexettuyen : idnganhtruong
+  ptxt ||--o{ quychexettuyen : idxettuyen
+  truongdaihoc ||--o{ gioithieutruong : idtruong
+  truongdaihoc ||--o{ deantuyensinh : idtruong
+  deantuyensinh ||--o{ filedeantuyensinh : iddean
+  nganh_truong ||--o{ nganh_theo_phuong_thuc : idnganhtruong
+  ptxt ||--o{ nganh_theo_phuong_thuc : idxettuyen
+  nganh_truong ||--o{ diemchuandexettuyen : idnganhtruong
+
+  nguoidung ||--o{ hoso_xettuyen : idnguoidung
+  nganh_truong ||--o{ hoso_xettuyen : idnganhtruong
+  ptxt ||--o{ hoso_xettuyen : idxettuyen
+  nguoidung ||--o{ thanhtoan : idnguoidung
+  hoso_xettuyen ||--o{ thanhtoan : idhoso
+
+  nguoidung ||--o{ diemhocba : idnguoidung
+  monhoc ||--o{ diemhocba : idmonhoc
+  nguoidung ||--o{ ketquatinhdiemhocba : idnguoidung
+  truongdaihoc ||--o{ cauhinhmonnhanheso : idtruong
+  ptxt ||--o{ cauhinhmonnhanheso : idxettuyen
+  monhoc ||--o{ cauhinhmonnhanheso : idmonhoc
+  truongdaihoc ||--o{ quydinhdiemuutien : idtruong
+  deantuyensinh ||--o{ quydinhdiemuutien_dean : iddean
+
+  nguoidung ||--o{ diemthi_totnghiep : idnguoidung
+  diemthi_totnghiep ||--o{ diemmon_totnghiep : iddiemthi
+  diemthi_totnghiep ||--o{ chitiet_diemthi_totnghiep : iddiemthi
+  nguoidung ||--o{ ketquatinhdiem_totnghiep : idnguoidung
+
+  nguoidung ||--o{ lichtuvan : idnguoidung
+  lichtuvan ||--o{ danhgia_lichtuvan : idlich
+  nguoidung ||--o{ danhgia_lichtuvan : idnguoidung
+  lichtuvan ||--o{ ghichu_buoituvan : idlich
+  nguoidung ||--o{ ghichu_buoituvan : idnguoidung
+  lichtuvan ||--o{ tep_minhchung_buoituvan : idlich
+  lichtuvan ||--o{ yeucau_doilich : idlich
+  nguoidung ||--o{ yeucau_doilich : idnguoidung
+  lichtuvan ||--o{ thongbao_lich : idlich
+  nguoidung ||--o{ thongbao_lich : idnguoidung
+
+  kythi_dgnl ||--o{ kythi_dgnl_sections : idkythi
+  kythi_dgnl_sections ||--o{ kythi_dgnl_questions : idsection
+  kythi_dgnl_questions ||--o{ kythi_dgnl_options : idquestion
+  kythi_dgnl ||--o{ kythi_dgnl_attempts : idkythi
+  nguoidung ||--o{ kythi_dgnl_attempts : idnguoidung
+  kythi_dgnl_attempts ||--o{ kythi_dgnl_attempt_details : idattempt
+  kythi_dgnl_questions ||--o{ kythi_dgnl_attempt_details : idquestion
+  kythi_dgnl_sections ||--o{ kythi_dgnl_topics : idsection

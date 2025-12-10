@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import Input from "../components/Input.jsx";
+import api from "../services/api";
 
 export default function Login() {
   const navigate = useNavigate();
@@ -22,8 +23,7 @@ export default function Login() {
     e.preventDefault();
     setError("");
 
-    const emailPattern =
-      /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
+    const emailPattern = /^[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}$/i;
     if (!emailPattern.test(formData.email.trim())) {
       setError("Email không hợp lệ. Vui lòng kiểm tra lại.");
       return;
@@ -32,72 +32,48 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const requestOptions = {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(formData)
-      };
+      // Gọi API qua ApiService để tránh 404 ở /api trên host
+      const data = await api.login(formData.email.trim(), formData.matkhau);
 
-      let res;
-      try {
-        res = await fetch("/api/login", requestOptions);
-      } catch {
-        res = await fetch("http://127.0.0.1:8000/api/login", requestOptions);
-      }
-
-      let data = null;
-      try {
-        data = await res.json();
-      } catch {
-        // Nếu không parse được JSON, để data là null
-      }
-
-      if (!res.ok || !data?.success) {
-        const invalidCredentialsStatuses = [400, 401, 404, 422];
-        const invalidCredentials = invalidCredentialsStatuses.includes(res?.status);
-        const message =
-          data?.message ||
-          (invalidCredentials
-            ? "Email hoặc mật khẩu không đúng"
-            : "Không thể đăng nhập. Vui lòng thử lại.");
-        setError(message);
+      if (!data || data.success === false) {
+        setError(data?.message || "Email hoặc mật khẩu không đúng");
         return;
       }
 
-      if (data.success) {
-        // Lưu thông tin user vào localStorage
-        localStorage.setItem('user', JSON.stringify(data.data));
-        
-        // Phân quyền theo vai trò (ưu tiên id vai trò nếu có)
-        const roleId = data.data.idvaitro;
-        const userRole = data.data.vaitro;
-        if (roleId === 6) {
-          navigate('/analyst');
-        } else {
-          switch (userRole) {
-            case 'Thành viên':
-              navigate('/dashboard/news');
-              break;
-            case 'Tư vấn viên':
-              navigate('/consultant');
-              break;
-            case 'Người phụ trách':
-              navigate('/staff/assign');
-              break;
-            case 'Admin':
-              navigate('/manager');
-              break;
-            default:
-              // Nếu không có vai trò phù hợp, chuyển về trang chủ
-              navigate('/');
-          }
-        }
+      // Lưu token (nếu có) và user
+      if (data.token || data.access_token) {
+        localStorage.setItem("token", data.token || data.access_token);
+      }
+      if (data.data) {
+        localStorage.setItem("user", JSON.stringify(data.data));
+      }
+
+      const user = data.data || {};
+      const roleId = user.idvaitro;
+      const userRole = user.vaitro;
+
+      if (roleId === 6) {
+        navigate("/analyst");
       } else {
-        setError(data.message || "Email hoặc mật khẩu không đúng");
+        switch (userRole) {
+          case "Thành viên":
+            navigate("/dashboard/news");
+            break;
+          case "Tư vấn viên":
+            navigate("/consultant");
+            break;
+          case "Người phụ trách":
+            navigate("/staff/assign");
+            break;
+          case "Admin":
+            navigate("/manager");
+            break;
+          default:
+            navigate("/");
+        }
       }
     } catch (err) {
+      console.error("Login failed:", err);
       setError("Không thể kết nối đến server");
     } finally {
       setLoading(false);

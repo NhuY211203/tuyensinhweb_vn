@@ -10,7 +10,7 @@ export default function Footer() {
           <div>
             <div className="flex items-center gap-2 mb-4">
               <img 
-                src="/logo.svg" 
+                src="/app/logo.svg" 
                 alt="Hoa học trò" 
                 className="h-8 w-8 object-contain"
               />

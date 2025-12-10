@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useToast } from "../../components/Toast";
+import api from "../../services/api";
 
 function Modal({ open, onClose, children }) {
   if (!open) return null;
@@ -81,15 +82,12 @@ export default function ConsultationSchedules() {
 
   const fetchConsultants = async () => {
     try {
-      // Lấy tất cả tư vấn viên (không phân trang)
-      const response = await fetch("http://localhost:8000/api/staff/consultants?perPage=1000&page=1");
-      const data = await response.json();
-      if (data.success) {
-        // API trả về data là array hoặc paginated data
+      const data = await api.get('/staff/consultants', { perPage: 1000, page: 1 });
+      if (data?.success) {
         const consultantsList = Array.isArray(data.data) ? data.data : (data.data?.data || data.data || []);
         setConsultants(consultantsList);
       } else {
-        console.error("Failed to load consultants:", data.message);
+        console.error("Failed to load consultants:", data?.message);
       }
     } catch (err) {
       console.error("Error loading consultants:", err);
@@ -111,10 +109,9 @@ export default function ConsultationSchedules() {
       if (filters.dateFrom) params.append("date_from", filters.dateFrom);
       if (filters.dateTo) params.append("date_to", filters.dateTo);
 
-      const response = await fetch(`http://localhost:8000/api/consultation-schedules/all?${params}`);
-      const data = await response.json();
+      const data = await api.get('/consultation-schedules/all', Object.fromEntries(params));
 
-      if (data.success) {
+      if (data?.success) {
         setSchedules(data.data || []);
         if (data.pagination) {
           setPagination(data.pagination);
@@ -290,35 +287,8 @@ export default function ConsultationSchedules() {
         body: requestBody
       });
       
-      const response = await fetch("http://localhost:8000/api/notifications/send", {
-        method: "POST",
-        headers: headers,
-        body: JSON.stringify(requestBody)
-      });
-      
-      console.log('🔔 Notification response status:', response.status);
-      console.log('🔔 Notification response headers:', Object.fromEntries(response.headers.entries()));
-      
-      // Kiểm tra status code trước khi parse JSON
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('❌ HTTP Error:', response.status, errorText);
-        let errorData;
-        try {
-          errorData = JSON.parse(errorText);
-        } catch (e) {
-          errorData = { message: errorText };
-        }
-        toast.push({ 
-          type: "error", 
-          title: `Lỗi ${response.status}: ${errorData.message || "Không thể gửi thông báo"}`,
-          message: errorData.errors ? JSON.stringify(errorData.errors) : undefined
-        });
-        setRequestingUpdate(prev => ({ ...prev, [schedule.idlichtuvan]: false }));
-        return;
-      }
-      
-      const data = await response.json();
+      const data = await api.post('/notifications/send', requestBody);
+      console.log('🔔 Notification response data:', data);
       console.log('🔔 Notification response data:', data);
 
       if (data.success) {

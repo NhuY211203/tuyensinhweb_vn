@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import api from "../../services/api";
 
 const STATUS_BADGES = {
   1: { label: "Trống", color: "bg-emerald-100 text-emerald-800 border-emerald-200" },
@@ -30,9 +31,8 @@ export default function ConsultantCalendar() {
   useEffect(() => {
     async function loadConsultants() {
       try {
-        const res = await fetch("http://localhost:8000/api/staff/consultants?perPage=1000&page=1");
-        const json = await res.json();
-        if (json.success) {
+        const json = await api.getConsultants({ perPage: 1000, page: 1 });
+        if (json?.success) {
           const list = Array.isArray(json.data) ? json.data : (json.data?.data || []);
           setConsultants(list);
           if (list.length && !selectedConsultant) {
@@ -53,38 +53,37 @@ export default function ConsultantCalendar() {
       setLoading(true);
       setError(null);
       try {
-        const params = new URLSearchParams({
+        const params = {
           consultant_id: selectedConsultant,
           per_page: 500,
           page: 1,
           date_from: formatDate(currentMonth),
           date_to: formatDate(new Date(currentMonth.getFullYear(), currentMonth.getMonth() + 1, 0)),
-        });
-        const res = await fetch(`http://localhost:8000/api/consultation-schedules/all?${params.toString()}`);
-        const json = await res.json();
-         if (json.success) {
-           const map = {};
-           (json.data || []).forEach((item) => {
-             const dateStr = (item.ngayhen || item.date)?.split("T")[0];
-             if (!dateStr) return;
-             if (!map[dateStr]) map[dateStr] = [];
+        };
+        const json = await api.getAllConsultationSchedules(params);
+        if (json?.success) {
+          const map = {};
+          (json.data || []).forEach((item) => {
+            const dateStr = (item.ngayhen || item.date)?.split("T")[0];
+            if (!dateStr) return;
+            if (!map[dateStr]) map[dateStr] = [];
 
-             const studentInfo = item.nguoiDat || {};
+            const studentInfo = item.nguoiDat || {};
 
-             map[dateStr].push({
-               time: `${item.giobatdau?.slice(0, 5) || "--:--"} - ${item.ketthuc?.slice(0, 5) || "--:--"}`,
-               status: item.trangthai || item.status,
-               note: item.tieude || item.noidung || item.tieu_de || "",
-               student: studentInfo.hoten || "",
-               studentEmail: studentInfo.email || "",
-               // hiện tại API không trả số điện thoại người đặt trong getAllConsultationSchedules
-               studentPhone: "",
-             });
-           });
-           setScheduleMap(map);
+            map[dateStr].push({
+              time: `${item.giobatdau?.slice(0, 5) || "--:--"} - ${item.ketthuc?.slice(0, 5) || "--:--"}`,
+              status: item.trangthai || item.status,
+              note: item.tieude || item.noidung || item.tieu_de || "",
+              student: studentInfo.hoten || "",
+              studentEmail: studentInfo.email || "",
+              // hiện tại API không trả số điện thoại người đặt trong getAllConsultationSchedules
+              studentPhone: "",
+            });
+          });
+          setScheduleMap(map);
         } else {
           setScheduleMap({});
-          setError(json.message || "Không tải được dữ liệu lịch tư vấn");
+          setError(json?.message || "Không tải được dữ liệu lịch tư vấn");
         }
       } catch (err) {
         console.error(err);

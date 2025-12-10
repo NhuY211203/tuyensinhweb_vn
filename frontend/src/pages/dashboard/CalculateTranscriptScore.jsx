@@ -42,8 +42,20 @@ export default function CalculateTranscriptScore() {
     { ma: 'CN', ten: 'Công nghệ', tenVietTat: 'Công nghệ' },
   ];
 
-  // Danh sách tổ hợp môn phổ biến (có thể lấy từ API sau)
-  const toHopMonList = [
+  // Danh sách tổ hợp — ưu tiên lấy từ API host; fallback về danh sách mặc định
+  const CODE_TO_SUBJECTS = {
+    A00:['TOAN','LI','HOA'],A01:['TOAN','LI','ANH'],B00:['TOAN','HOA','SINH'],
+    C00:['VAN','SU','DIA'],C01:['VAN','TOAN','LI'],C02:['VAN','TOAN','HOA'],
+    C03:['VAN','TOAN','SINH'],C04:['VAN','TOAN','DIA'],C08:['VAN','HOA','SINH'],
+    D01:['TOAN','VAN','ANH'],D07:['TOAN','HOA','ANH'],D08:['TOAN','SINH','ANH'],
+    D09:['TOAN','DIA','ANH'],D10:['TOAN','LI','ANH'],D11:['VAN','HOA','ANH'],
+    D13:['VAN','SINH','ANH'],D14:['VAN','SU','ANH'],D15:['VAN','DIA','ANH'],
+    A02:['TOAN','LI','SINH'],A04:['TOAN','LI','DIA'],A05:['TOAN','HOA','SU'],
+    A06:['TOAN','HOA','DIA'],A07:['TOAN','SU','DIA'],B02:['TOAN','SINH','DIA'],
+    B03:['TOAN','SINH','SU'],B08:['TOAN','SINH','ANH']
+  };
+
+  const DEFAULT_TOHOP_LIST = [
     { ma: 'A00', mon: ['TOAN', 'LI', 'HOA'], ten: 'A00 (Toán, Lý, Hóa)' },
     { ma: 'A01', mon: ['TOAN', 'LI', 'ANH'], ten: 'A01 (Toán, Lý, Anh)' },
     { ma: 'B00', mon: ['TOAN', 'HOA', 'SINH'], ten: 'B00 (Toán, Hóa, Sinh)' },
@@ -71,6 +83,30 @@ export default function CalculateTranscriptScore() {
     { ma: 'B03', mon: ['TOAN', 'SINH', 'SU'], ten: 'B03 (Toán, Sinh, Sử)' },
     { ma: 'B08', mon: ['TOAN', 'SINH', 'ANH'], ten: 'B08 (Toán, Sinh, Anh)' },
   ];
+
+  const [toHopMonList, setToHopMonList] = useState(DEFAULT_TOHOP_LIST);
+
+  // Load combos từ host API: https://hoahoctro.42web.io/laravel/public/api/tohop-xettuyen?perPage=200
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        const res = await apiService.getSubjectCombos({ perPage: 200 });
+        const rows = (res?.data ?? res) || [];
+        const mapped = rows.map(r => {
+          const code = r.ma_to_hop || r.code;
+          const mon = CODE_TO_SUBJECTS[code];
+          if (!mon) return null; // chỉ lấy tổ hợp có ánh xạ môn để tính được
+          const ten = r.mo_ta ? `${code} (${r.mo_ta})` : code;
+          return { ma: code, mon, ten };
+        }).filter(Boolean);
+        if (mounted && mapped.length) setToHopMonList(mapped);
+      } catch (e) {
+        // giữ nguyên DEFAULT_TOHOP_LIST
+      }
+    })();
+    return () => { mounted = false };
+  }, []);
 
   // Lấy phương thức đã chọn để xác định cấu trúc bảng
   const selectedPhuongThucObj = phuongThucList.find(pt => pt.idphuongthuc_hb === selectedPhuongThuc);

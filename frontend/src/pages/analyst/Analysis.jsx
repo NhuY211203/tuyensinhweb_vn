@@ -15,6 +15,7 @@ import {
   ZAxis,
 } from "recharts";
 import Toast from "../../components/Toast";
+import api from "../../services/api";
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042', '#8884d8', '#82ca9d'];
 
@@ -176,11 +177,12 @@ export default function Analysis() {
   const loadDgnlAnalysis = async () => {
     try {
       const [examsRes, attemptsRes] = await Promise.all([
-        fetch("http://localhost:8000/api/kythi-dgnl/exams"),
-        fetch("http://localhost:8000/api/kythi-dgnl/attempts"),
+        api.getDGNLExams(),
+        api.getDGNLAttempts(),
       ]);
-      const examsJson = await examsRes.json();
-      const attemptsJson = await attemptsRes.json();
+
+      const examsJson = examsRes;
+      const attemptsJson = attemptsRes;
 
       if (!examsJson.success || !attemptsJson.success) {
         return;

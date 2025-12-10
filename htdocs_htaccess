@@ -1,0 +1,17 @@
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteBase /
+# Map assets cho frontend (phòng index cũ)
+RewriteRule ^assets/(.)$ app/assets/$1 [L]
+# CHO QUA /api NGUYÊN VẸN – để thư mục /api tự xử lý
+RewriteCond %{REQUEST_URI} ^/api
+RewriteRule ^ - [L]
+# Phục vụ trực tiếp /app, /laravel/public hoặc file/thư mục có thật
+RewriteCond %{REQUEST_URI} ^/app [OR]
+RewriteCond %{REQUEST_URI} ^/laravel/public [OR]
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+# Còn lại đẩy vào Laravel (web)
+RewriteRule ^(.)$ laravel/public/$1 [L]
+</IfModule>

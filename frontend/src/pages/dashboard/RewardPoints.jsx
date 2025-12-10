@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useToast } from '../../components/Toast';
+import api from '../../services/api';
 
 export default function RewardPoints() {
   const [points, setPoints] = useState([]);
@@ -20,17 +21,15 @@ export default function RewardPoints() {
   const fetchRewardPoints = async () => {
     try {
       setLoading(true);
-      const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
       const storedUserRaw = window.localStorage.getItem('user') || sessionStorage.getItem('user') || '{}';
       let parsedUser = {};
       try { parsedUser = JSON.parse(storedUserRaw || '{}'); } catch { parsedUser = {}; }
       const resolvedUserId = parsedUser.idnguoidung || parsedUser.id || window.localStorage.getItem('user_id') || sessionStorage.getItem('user_id') || 0;
       const userId = Number(resolvedUserId) || 0;
 
-      const response = await fetch(`${API_BASE}/api/my-reward-points?user_id=${userId}`);
-      const data = await response.json();
+      const data = await api.get('/my-reward-points', { user_id: userId });
 
-      if (data.success) {
+      if (data?.success) {
         setPoints(data.data || []);
         setSummary(data.summary || {
           tong_diem: 0,
@@ -40,7 +39,7 @@ export default function RewardPoints() {
           so_luong_da_dung: 0,
         });
       } else {
-        toast.push({ type: 'error', title: data.message || 'Không thể tải điểm đổi thưởng' });
+        toast.push({ type: 'error', title: data?.message || 'Không thể tải điểm đổi thưởng' });
       }
     } catch (err) {
       console.error('Error loading reward points:', err);

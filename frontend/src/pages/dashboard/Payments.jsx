@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
+import api from '../../services/api';
 
 const statusStyles = {
   'Đã thanh toán': {
@@ -37,25 +38,32 @@ export default function Payments() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    const API_BASE = import.meta.env.VITE_API_BASE || 'http://localhost:8000';
-    // Prefer user object -> idnguoidung/id; fallback to user_id keys; finally 0
-    const storedUserRaw = window.localStorage.getItem('user') || sessionStorage.getItem('user') || '{}';
-    let parsedUser = {};
-    try { parsedUser = JSON.parse(storedUserRaw || '{}'); } catch { parsedUser = {}; }
-    const resolvedUserId = parsedUser.idnguoidung || parsedUser.id || window.localStorage.getItem('user_id') || sessionStorage.getItem('user_id') || 0;
-    const userId = Number(resolvedUserId) || 0;
+  // New payment creator (select method)
+  const [showCreate, setShowCreate] = useState(false);
+  const [method, setMethod] = useState('vietqr');
+  const [amountInput, setAmountInput] = useState(200000);
+  const [memoInput, setMemoInput] = useState(`TS-ORDER-${Date.now()}`);
 
-    fetch(`${API_BASE}/api/payments/history?userId=${userId}`)
-      .then(async r => {
-        try { return await r.json(); } catch { return { success:false }; }
-      })
-      .then(res => {
-        if (res?.success) setRows(res.data || []);
-        else console.warn('payments/history response', res);
-      })
-      .catch(err => console.error('payments/history error', err))
-      .finally(() => setLoading(false));
+  useEffect(() => {
+    (async () => {
+      try {
+        setLoading(true);
+        // Lấy user_id từ localStorage/sessionStorage
+        const storedUserRaw = window.localStorage.getItem('user') || sessionStorage.getItem('user') || '{}';
+        let parsedUser = {};
+        try { parsedUser = JSON.parse(storedUserRaw || '{}'); } catch { parsedUser = {}; }
+        const resolvedUserId = parsedUser.idnguoidung || parsedUser.id || window.localStorage.getItem('user_id') || sessionStorage.getItem('user_id') || 0;
+        const userId = Number(resolvedUserId) || 0;
+
+        const data = await api.get('/payments/history', { userId });
+        if (data?.success) setRows(data.data || []);
+        else console.warn('payments/history response', data);
+      } catch (err) {
+        console.error('payments/history error', err);
+      } finally {
+        setLoading(false);
+      }
+    })();
   }, []);
 
   const hasRows = useMemo(() => rows.length > 0, [rows.length]);

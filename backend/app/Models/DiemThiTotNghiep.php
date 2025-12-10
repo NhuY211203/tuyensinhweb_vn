@@ -42,3 +42,13 @@ class DiemThiTotNghiep extends Model
 
 
 
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,10 @@
+<IfModule mod_rewrite.c>
+RewriteEngine On
+RewriteBase /api/
+# Nếu là file/thư mục thật thì trả trực tiếp
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]
+# Còn lại chuyển về index.php (để PHP require Laravel)
+RewriteRule ^ index.php [L]
+</IfModule>

@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import Modal from "../../components/Modal";
 import Toast from "../../components/Toast";
+import apiService from "../../services/api";
 
 export default function AdmissionMajorManagement() {
   const [admissionMajors, setAdmissionMajors] = useState([]);
@@ -41,8 +42,7 @@ export default function AdmissionMajorManagement() {
   // Load universities for dropdown
   const loadUniversities = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/admin/truongdaihoc?per_page=1000&page=1');
-      const data = await response.json();
+      const data = await apiService.get('/admin/truongdaihoc', { per_page: 1000, page: 1 });
       if (data.success) {
         setUniversities(data.data);
       }
@@ -54,8 +54,7 @@ export default function AdmissionMajorManagement() {
   // Load majors for dropdown
   const loadMajors = async () => {
     try {
-      const response = await fetch('http://localhost:8000/api/nganhhoc?perPage=1000&page=1');
-      const data = await response.json();
+      const data = await apiService.get('/nganhhoc', { perPage: 1000, page: 1 });
       if (data.data) {
         setMajors(data.data);
       }
@@ -68,17 +67,14 @@ export default function AdmissionMajorManagement() {
   const loadAdmissionMajors = async (page = 1, keyword = "", idtruong = "", manganh = "") => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        per_page: "20",
-      });
-      
-      if (keyword) params.append('keyword', keyword);
-      if (idtruong) params.append('idtruong', idtruong);
-      if (manganh) params.append('manganh', manganh);
-      
-      const response = await fetch(`http://localhost:8000/api/admin/nganh-truong?${params}`);
-      const data = await response.json();
+      const params = {
+        page: page,
+        per_page: 20,
+        ...(keyword && { keyword }),
+        ...(idtruong && { idtruong }),
+        ...(manganh && { manganh }),
+      };
+      const data = await apiService.get('/admin/nganh-truong', params);
       
       if (data.success) {
         setAdmissionMajors(data.data || []);
@@ -174,21 +170,20 @@ export default function AdmissionMajorManagement() {
         mota_tomtat: formData.mota_tomtat || null,
       };
       
-      const url = editingItem 
-        ? `http://localhost:8000/api/admin/nganh-truong/${editingItem.idnganhtruong}`
-        : "http://localhost:8000/api/admin/nganh-truong";
+      const endpoint = editingItem 
+        ? `/admin/nganh-truong/${editingItem.idnganhtruong}`
+        : "/admin/nganh-truong";
       
-      const method = editingItem ? "PUT" : "POST";
-      
-      const response = await fetch(url, {
-        method,
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(payload)
-      });
-      
-      const data = await response.json();
+      let data;
+      if (editingItem) {
+        // InfinityFree chặn PUT: dùng POST + _method=PUT với FormData
+        const form = new FormData();
+        form.append('_method', 'PUT');
+        Object.entries(payload).forEach(([k, v]) => form.append(k, v ?? ''));
+        data = await apiService.request(endpoint, { method: 'POST', body: form, headers: {} });
+      } else {
+        data = await apiService.post(endpoint, payload);
+      }
       
       if (data.success) {
         const successMessage = editingItem 
@@ -229,11 +224,7 @@ export default function AdmissionMajorManagement() {
     
     setLoading(true);
     try {
-      const response = await fetch(`http://localhost:8000/api/admin/nganh-truong/${deleteId}`, {
-        method: "DELETE"
-      });
-      
-      const data = await response.json();
+      const data = await apiService.delete(`/admin/nganh-truong/${deleteId}`);
       
       if (data.success) {
         showToast("Xóa ngành tuyển sinh thành công", "success");

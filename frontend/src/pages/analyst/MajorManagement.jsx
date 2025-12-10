@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import Modal from "../../components/Modal";
 import Toast from "../../components/Toast";
+import apiService from "../../services/api";
 
 export default function MajorManagement() {
   const [majors, setMajors] = useState([]);
@@ -49,9 +50,8 @@ export default function MajorManagement() {
   const loadMajors = async (p = 1, search = "") => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({ page: p.toString(), per_page: "20", ...(search && { search }) });
-      const res = await fetch(`http://localhost:8000/api/admin/nganhhoc?${params}`);
-      const data = await res.json();
+      const params = { page: p, per_page: 20, ...(search && { search }) };
+      const data = await apiService.get('/admin/nganhhoc', params);
       if (data.success) {
         setMajors(data.data);
         setPage(data.pagination.current_page);
@@ -73,8 +73,7 @@ export default function MajorManagement() {
   useEffect(() => {
     (async () => {
       try {
-        const res = await fetch(`http://localhost:8000/api/nhomnganh`);
-        const data = await res.json();
+        const data = await apiService.get('/nhomnganh');
         if (data && (data.success === true || Array.isArray(data))) {
           const list = data.success ? data.data : data; // shape: {id, code, name}
           setGroups(Array.isArray(list) ? list : []);
@@ -115,10 +114,17 @@ export default function MajorManagement() {
         mucluong: formData.mucluong || null,
         xuhuong: formData.xuhuong || null,
       };
-      const url = editing ? `http://localhost:8000/api/admin/nganhhoc/${editing.idnganh}` : `http://localhost:8000/api/admin/nganhhoc`;
-      const method = editing ? "PUT" : "POST";
-      const res = await fetch(url, { method, headers: { "Content-Type": "application/json" }, body: JSON.stringify(payload) });
-      const data = await res.json();
+      const endpoint = editing ? `/admin/nganhhoc/${editing.idnganh}` : `/admin/nganhhoc`;
+      let data;
+      if (editing) {
+        // InfinityFree chặn PUT: dùng POST + _method=PUT với FormData để tránh preflight/CORS
+        const form = new FormData();
+        form.append('_method', 'PUT');
+        Object.entries(payload).forEach(([k, v]) => form.append(k, v ?? ''));
+        data = await apiService.request(endpoint, { method: 'POST', body: form, headers: {} });
+      } else {
+        data = await apiService.post(endpoint, payload);
+      }
       if (data.success) {
         showToast(editing ? "Cập nhật ngành học thành công" : "Thêm ngành học thành công", "success");
         setTimeout(() => { setShowModal(false); resetForm(); loadMajors(page, searchTerm); }, 100);
@@ -135,8 +141,14 @@ export default function MajorManagement() {
     if (!window.confirm("Xóa ngành học này?")) return;
     setLoading(true);
     try {
-      const res = await fetch(`http://localhost:8000/api/admin/nganhhoc/${id}`, { method: "DELETE" });
-      const data = await res.json();
+      // InfinityFree chặn DELETE → dùng POST + _method=DELETE (FormData)
+      const form = new FormData();
+      form.append('_method', 'DELETE');
+      const data = await apiService.request(`/admin/nganhhoc/${id}`, {
+        method: 'POST',
+        body: form,
+        headers: {},
+      });
       if (data.success) { showToast("Xóa thành công", "success"); loadMajors(page, searchTerm); }
       else showToast(data.message || "Có lỗi xảy ra", "error");
     } catch (e) { showToast("Lỗi kết nối", "error"); }
@@ -148,8 +160,7 @@ export default function MajorManagement() {
     if (!window.confirm(`Xóa ${selectedIds.length} ngành học?`)) return;
     setLoading(true);
     try {
-      const res = await fetch("http://localhost:8000/api/admin/nganhhoc/bulk", { method: "DELETE", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: selectedIds }) });
-      const data = await res.json();
+      const data = await apiService.request('/admin/nganhhoc/bulk', { method: 'DELETE', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ ids: selectedIds }) });
       if (data.success) { showToast(data.message || "Xóa thành công", "success"); setSelectedIds([]); loadMajors(page, searchTerm); }
       else showToast(data.message || "Có lỗi xảy ra", "error");
     } catch (e) { showToast("Lỗi kết nối", "error"); }
@@ -184,8 +195,7 @@ export default function MajorManagement() {
                 try {
                   const formData = new FormData();
                   formData.append('file', file);
-                  const res = await fetch('http://localhost:8000/api/admin/nganhhoc/import', { method:'POST', body: formData });
-                  const data = await res.json();
+                  const data = await apiService.request('/admin/nganhhoc/import', { method: 'POST', body: formData, headers: {} });
                   if (data.success) {
                     const s = data.summary || {}; 
                     showToast(`Nhập CSV thành công: thêm ${s.created||0}, cập nhật ${s.updated||0}, lỗi ${s.failed||0}`, 'success');
@@ -338,14 +348,12 @@ export default function MajorManagement() {
           setGroupErrors(errs);
           if (Object.keys(errs).length>0) return;
           try {
-            const res = await fetch('http://localhost:8000/api/admin/nhomnganh', { method:'POST', headers:{ 'Content-Type':'application/json' }, body: JSON.stringify(groupForm) });
-            const data = await res.json();
+            const data = await apiService.post('/admin/nhomnganh', groupForm);
             if (data.success) {
               showToast('Thêm nhóm ngành thành công','success');
               setShowGroupModal(false);
               // reload groups and select new one
-              const r = await fetch('http://localhost:8000/api/nhomnganh');
-              const d = await r.json();
+              const d = await apiService.get('/nhomnganh');
               const list = d.success ? d.data : d;
               setGroups(Array.isArray(list)?list:[]);
               const newId = data.data?.idnhomnganh ?? data.data?.id;

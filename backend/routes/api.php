@@ -12,6 +12,7 @@ use App\Http\Controllers\TruongDaiHocController;
 use App\Http\Controllers\CoSoTruongController;
 use App\Http\Controllers\NotificationController;
 use App\Http\Controllers\PaymentController;
+use App\Http\Controllers\DebugPaymentController;
 use App\Http\Controllers\NganhHocController;
 use App\Http\Controllers\NhomNganhController;
 use App\Http\Controllers\NganhTruongController;
@@ -516,6 +517,13 @@ Route::prefix('payments')->group(function () {
     Route::get('/status/{orderId}', [PaymentController::class, 'checkPaymentStatus']);
     Route::post('/zalopay/callback', [PaymentController::class, 'zalopayCallback']);
     Route::get('/history', [PaymentController::class, 'history']);
+});
+
+// Debug routes - ZaloPay configuration check
+Route::prefix('debug')->group(function () {
+    Route::get('/zalopay-config', [DebugPaymentController::class, 'checkZaloPayConfig']);
+    Route::get('/zalopay-connection', [DebugPaymentController::class, 'checkZaloPayConnection']);
+    Route::get('/payment-logs', [DebugPaymentController::class, 'getPaymentLogs']);
 });
 
 // ============================================

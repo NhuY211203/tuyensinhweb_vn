@@ -1,5 +1,6 @@
 import { useState, useEffect } from "react";
 import { useToast } from "../../components/Toast";
+import api from "../../services/api";
 
 export default function Statistics() {
   const [statistics, setStatistics] = useState([]);
@@ -31,9 +32,8 @@ export default function Statistics() {
 
   const fetchConsultants = async () => {
     try {
-      const response = await fetch("http://localhost:8000/api/staff/consultants?perPage=1000&page=1");
-      const data = await response.json();
-      if (data.success) {
+      const data = await api.get('/staff/consultants', { perPage: 1000, page: 1 });
+      if (data?.success) {
         const consultantsList = Array.isArray(data.data) ? data.data : (data.data?.data || data.data || []);
         setConsultants(consultantsList);
       }
@@ -50,10 +50,9 @@ export default function Statistics() {
       if (filters.dateFrom) params.append("date_from", filters.dateFrom);
       if (filters.dateTo) params.append("date_to", filters.dateTo);
 
-      const response = await fetch(`http://localhost:8000/api/staff/consultant-statistics?${params}`);
-      const data = await response.json();
+      const data = await api.get('/staff/consultant-statistics', Object.fromEntries(params));
 
-      if (data.success) {
+      if (data?.success) {
         setStatistics(data.data || []);
         setSummary(data.summary || {
           tong_so_tu_van_vien: 0,

@@ -90,7 +90,7 @@ export default function CollapsibleSidebar({ collapsed, setCollapsed, mobileOpen
         <div className="flex items-center gap-2">
           <Link to="/" className="inline-flex items-center justify-center">
             <img 
-              src="/logo.svg" 
+              src="/app/logo.svg" 
               alt="Hoa học trò" 
               className="h-8 w-8 object-contain"
             />

@@ -1,0 +1,48 @@
+HUONG DAN CAU HINH ZALOPAY
+=========================
+
+1. TAO FILE .env TRONG THU MUC backend/
+
+Them cac bien sau vao file .env:
+
+ZALOPAY_APP_ID=2553
+ZALOPAY_KEY1=PcY4iZIKFCIDz50pIrXrHD8gJ2WTvMAu9ajQrDJ142SoYvTtQBJ4bIct7p7XH6ix
+ZALOPAY_KEY2=trMrHm9yP6yP8O87iC6cq5ESxTEn6m3fIcfP2saGgQG1DQu4GiS9pG8S9thj1xgJ
+ZALOPAY_ENDPOINT=https://sb-openapi.zalopay.vn/v2/create
+ZALOPAY_CALLBACK_URL=https://hoahoctro.42web.io/laravel/public/api/payments/zalopay/callback
+
+2. LAY THONG TIN TU ZALOPAY
+
+- Dang nhap: https://business.zalopay.vn
+- Vao Settings > API Keys
+- Copy App ID, Key 1, Key 2
+
+3. CAU HINH CALLBACK URL
+
+- Trong ZaloPay Dashboard, vao Settings > Webhook
+- Them URL: https://hoahoctro.42web.io/laravel/public/api/payments/zalopay/callback
+- Luu cau hinh
+
+4. KHAC PHUC LOI
+
+Loi: "Du lieu yeu cau khong hop le" (sub_return_code: -401)
+- Kiem tra file .env co day du cac bien ZaloPay
+- Xem logs: storage/logs/laravel.log
+- Duong dan callback phai la URL cong khai
+
+Loi: "Giao dich that bai"
+- Xem chi tiet loi trong response
+- Kiem tra logs
+
+Loi: "Khong nhan duoc order_url"
+- Kiem tra logs de xem response tu ZaloPay
+- Duam bao amount > 0
+- Kiem tra app_trans_id co dung format YYMMDD_xxxxxx
+
+5. CACH TINH MAC SIGNATURE
+
+data_string = app_id|app_trans_id|app_user|amount|app_time|embed_data|item
+mac = HMAC-SHA256(data_string, key1)
+
+QUAN TRONG: Tat ca gia tri phai la string va khong co khoang trang thua!
+

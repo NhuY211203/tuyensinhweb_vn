@@ -1,6 +1,7 @@
 import Input from "./Input.jsx";
 import Select from "./Select.jsx";
 import { useEffect, useMemo, useRef, useState } from "react";
+import api from "../services/api";
 
 export default function SearchFilters({ filters, setFilters, years, combos, methods, schools }) {
   const set = (key, val) => setFilters(f => ({ ...f, [key]: val }));
@@ -23,52 +24,38 @@ export default function SearchFilters({ filters, setFilters, years, combos, meth
   // Load groups/majors from API, filtered by school if selected
   useEffect(() => {
     let alive = true;
-    async function load() {
+    (async () => {
       try {
-        let url = '/api/nhomnganh?perPage=100';
-        if (filters.school) {
-          url += `&idtruong=${filters.school}`;
-        }
-        const res = await fetch(url).catch(() => {
-          const fallbackUrl = filters.school 
-            ? `http://127.0.0.1:8000/api/nhomnganh?perPage=100&idtruong=${filters.school}`
-            : 'http://127.0.0.1:8000/api/nhomnganh?perPage=100';
-          return fetch(fallbackUrl);
-        });
+        const params = { perPage: 100 };
+        if (filters.school) params.idtruong = filters.school;
+        const res = await api.get('/nhomnganh', params);
         if (!alive) return;
-        if (res?.ok) {
-          const json = await res.json();
-          const data = json.data || [];
-          const mapped = data.map(g => ({
-            group: g.name || g.tennhom,
-            items: (g.majors || []).map(m => ({
-              name: m.name || m.tennganh,
-              code: m.code || m.manganh
-            }))
-          })).filter(g => g.items.length > 0); // Only keep groups with items
-          
-          // Build map of major name -> manganh for quick lookup
-          const nameToCodeMap = new Map();
-          data.forEach(g => {
-            (g.majors || []).forEach(m => {
-              const name = m.name || m.tennganh;
-              const code = m.code || m.manganh;
-              if (name && code) {
-                nameToCodeMap.set(name, code);
-              }
-            });
+
+        const data = (res?.data ?? res) || [];
+        const mapped = data.map(g => ({
+          group: g.name || g.tennhom,
+          items: (g.majors || []).map(m => ({
+            name: m.name || m.tennganh,
+            code: m.code || m.manganh
+          }))
+        })).filter(g => (g.items?.length || 0) > 0);
+
+        // Build map of major name -> manganh for quick lookup
+        const nameToCodeMap = new Map();
+        data.forEach(g => {
+          (g.majors || []).forEach(m => {
+            const name = m.name || m.tennganh;
+            const code = m.code || m.manganh;
+            if (name && code) nameToCodeMap.set(name, code);
           });
-          setMajorDataMap(nameToCodeMap);
-          
-          setGroupedMajors(mapped);
-        } else {
-          console.error('Failed to load majors:', res.status);
-        }
+        });
+        setMajorDataMap(nameToCodeMap);
+        setGroupedMajors(mapped);
       } catch (error) {
         console.error('Error loading majors:', error);
+        setGroupedMajors([]);
       }
-    }
-    load();
+    })();
     return () => { alive = false; };
   }, [filters.school]);
 

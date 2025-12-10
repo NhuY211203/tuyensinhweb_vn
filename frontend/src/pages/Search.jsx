@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import ProgramCard from "../components/ProgramCard.jsx";
 import SearchFilters from "../components/SearchFilters.jsx";
+import api from "../services/api";
 
 export default function Search() {
   const [filters, setFilters] = useState({
@@ -15,52 +16,31 @@ export default function Search() {
   const [error, setError] = useState(null);
   const [pagination, setPagination] = useState({ current_page: 1, last_page: 1, total: 0 });
 
-  // Load filter options (schools, methods, years - static)
+  // Load filter options (schools, methods, years)
   useEffect(() => {
     let isMounted = true;
     async function loadFilters() {
       try {
-        const schoolsRes = await fetch("/api/truongdaihoc?perPage=100").catch(() => 
-          fetch("http://127.0.0.1:8000/api/truongdaihoc?perPage=100")
-        );
-        
+        // Load in parallel
+        const [schoolsRes, methodsRes, yearsRes] = await Promise.all([
+          api.get("/truongdaihoc", { perPage: 100 }),
+          api.get("/phuong-thuc", { perPage: 100 }),
+          api.get("/years")
+        ]);
+
         if (!isMounted) return;
-        
-        if (schoolsRes.ok) {
-          const schoolsData = await schoolsRes.json();
-          setSchools(schoolsData.data.map(s => ({ value: s.idtruong, label: s.tentruong })));
-        }
-        
-        // Load methods from API
-        try {
-          const methodsRes = await fetch("/api/phuong-thuc?perPage=100").catch(() =>
-            fetch("http://127.0.0.1:8000/api/phuong-thuc?perPage=100")
-          );
-          if (methodsRes?.ok) {
-            const methodsData = await methodsRes.json();
-            setMethods((methodsData.data || []).map(m => ({ value: m.idxettuyen, label: m.tenptxt })));
-          }
-        } catch {}
-        
-        // Load years from API
-        try {
-          const yearsRes = await fetch("/api/years").catch(() =>
-            fetch("http://127.0.0.1:8000/api/years")
-          );
-          if (yearsRes?.ok) {
-            const yearsData = await yearsRes.json();
-            setYears((yearsData.data || []).map(y => ({ value: y.value || y, label: y.label || y })));
-          } else {
-            // Fallback to hardcoded years
-            setYears([2024, 2023, 2022, 2021, 2020].map(y => ({ value: y, label: y })));
-          }
-        } catch {
-          // Fallback to hardcoded years
-          setYears([2024, 2023, 2022, 2021, 2020].map(y => ({ value: y, label: y })));
-        }
-      } catch (error) {
+
+        const schoolsList = (schoolsRes?.data ?? schoolsRes) || [];
+        setSchools(schoolsList.map(s => ({ value: s.idtruong, label: s.tentruong })));
+
+        const methodsList = (methodsRes?.data ?? methodsRes) || [];
+        setMethods(methodsList.map(m => ({ value: m.idxettuyen, label: m.tenptxt })));
+
+        const yearsList = (yearsRes?.data ?? yearsRes) || [];
+        setYears(yearsList.map(y => ({ value: y.value ?? y, label: y.label ?? y })));
+      } catch (e) {
         if (!isMounted) return;
-        console.error("Error loading filters:", error);
+        console.error("Error loading filters:", e);
         setError("Không thể tải dữ liệu bộ lọc");
       }
     }
@@ -73,51 +53,32 @@ export default function Search() {
     let isMounted = true;
     async function loadCombos() {
       try {
-        let url = '/api/tohop-xettuyen';
-        const params = new URLSearchParams();
-        
-        // If manganh is selected, filter combos by major
+        const params = {};
         if (filters.manganh) {
-          params.append('manganh', filters.manganh);
-          // Optional: also filter by school and method if selected
-          if (filters.school) params.append('idtruong', filters.school);
-          if (filters.method) params.append('idxettuyen', filters.method);
-          if (filters.year) params.append('nam', filters.year);
-          url += '?' + params.toString();
+          params.manganh = filters.manganh;
+          if (filters.school) params.idtruong = filters.school;
+          if (filters.method) params.idxettuyen = filters.method;
+          if (filters.year) params.nam = filters.year;
         } else {
-          // Load all combos if no major selected
-          params.append('perPage', '100');
-          url += '?' + params.toString();
+          params.perPage = 100;
         }
-        
-        const combosRes = await fetch(url).catch(() => 
-          fetch(`http://127.0.0.1:8000${url}`)
-        );
-        
+        const combosRes = await api.get("/tohop-xettuyen", params);
         if (!isMounted) return;
-        
-        if (combosRes.ok) {
-          const combosData = await combosRes.json();
-          // Handle both paginated and non-paginated responses
-          const combosList = combosData.data || [];
-          setCombos(combosList.map(c => ({ 
-            value: c.ma_to_hop || c.code, 
-            label: c.mo_ta ? `${c.ma_to_hop || c.code} - ${c.mo_ta}` : (c.label || c.ma_to_hop || c.code)
-          })));
-          
-          // Clear combo selection if current combo is not in the new list
-          if (filters.combo) {
-            const comboExists = combosList.some(c => 
-              (c.ma_to_hop || c.code) === filters.combo
-            );
-            if (!comboExists) {
-              setFilters(prev => ({ ...prev, combo: "" }));
-            }
-          }
+
+        const combosList = (combosRes?.data ?? combosRes) || [];
+        setCombos(combosList.map(c => ({
+          value: c.ma_to_hop || c.code,
+          label: c.mo_ta ? `${c.ma_to_hop || c.code} - ${c.mo_ta}` : (c.label || c.ma_to_hop || c.code)
+        })));
+
+        // Clear combo selection if current combo not found
+        if (filters.combo) {
+          const exists = combosList.some(c => (c.ma_to_hop || c.code) === filters.combo);
+          if (!exists) setFilters(prev => ({ ...prev, combo: "" }));
         }
-      } catch (error) {
+      } catch (e) {
         if (!isMounted) return;
-        console.error("Error loading combos:", error);
+        console.error("Error loading combos:", e);
       }
     }
     loadCombos();
@@ -130,41 +91,28 @@ export default function Search() {
     async function loadPrograms() {
       setLoading(true);
       try {
-        const params = new URLSearchParams();
-        // If manganh is set (from dropdown selection), use it for precise filtering
-        // Otherwise, use keyword for text search
-        if (filters.manganh) {
-          params.append('manganh', filters.manganh);
-        } else if (filters.q) {
-          params.append('keyword', filters.q);
-        }
-        if (filters.school) params.append('idtruong', filters.school);
-        if (filters.combo) params.append('tohop', filters.combo);
-        if (filters.year) params.append('nam', filters.year);
-        if (filters.method && filters.method !== '') {
-          params.append('idxettuyen', String(filters.method));
-        }
-        params.append('perPage', '20');
-        params.append('page', filters.page);
-        
-        const res = await fetch(`/api/diemchuan?${params}`).catch(() => 
-          fetch(`http://127.0.0.1:8000/api/diemchuan?${params}`)
-        );
-        
+        const params = {};
+        if (filters.manganh) params.manganh = filters.manganh;
+        else if (filters.q) params.keyword = filters.q;
+        if (filters.school) params.idtruong = filters.school;
+        if (filters.combo) params.tohop = filters.combo;
+        if (filters.year) params.nam = filters.year;
+        if (filters.method && filters.method !== '') params.idxettuyen = String(filters.method);
+        params.perPage = 20;
+        params.page = filters.page;
+
+        const data = await api.get('/diemchuan', params);
         if (!isMounted) return;
-        
-        if (res.ok) {
-          const data = await res.json();
-          setPrograms(data.data || []);
-          setPagination({
-            current_page: data.current_page || 1,
-            last_page: data.last_page || 1,
-            total: data.total || 0
-          });
-        }
-      } catch (error) {
+
+        setPrograms(data.data || []);
+        setPagination({
+          current_page: data.current_page || data.pagination?.current_page || 1,
+          last_page: data.last_page || data.pagination?.last_page || 1,
+          total: data.total || data.pagination?.total || 0
+        });
+      } catch (e) {
         if (!isMounted) return;
-        console.error("Error loading programs:", error);
+        console.error("Error loading programs:", e);
         setError("Không thể tải dữ liệu chương trình");
       } finally {
         if (isMounted) setLoading(false);

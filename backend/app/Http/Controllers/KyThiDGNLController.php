@@ -16,13 +16,23 @@ use App\Models\KyThiDGNLTopic;
 class KyThiDGNLController extends Controller
 {
     /**
-    * Danh sách kỳ thi ĐGNL.
+    * Danh sách kỳ thi ĐGNL (chuẩn hóa field cho frontend).
     */
     public function exams(): JsonResponse
     {
         try {
             $items = KyThiDGNL::orderBy('created_at', 'desc')->get();
-            return response()->json(['success' => true, 'data' => $items]);
+            $data = $items->map(function ($r) {
+                return [
+                    'idkythi'          => (int)($r->idkythi ?? $r->id ?? 0),
+                    'makythi'          => (string)($r->makythi ?? $r->code ?? ''),
+                    'tenkythi'         => (string)($r->tenkythi ?? $r->name ?? $r->title ?? ''),
+                    'to_chuc'          => (string)($r->to_chuc ?? $r->organization ?? ''),
+                    'so_cau'           => (int)($r->so_cau ?? $r->total_questions ?? 0),
+                    'thoi_luong_phut'  => (int)($r->thoi_luong_phut ?? $r->duration ?? 0),
+                ];
+            });
+            return response()->json(['success' => true, 'data' => $data]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -82,8 +92,6 @@ class KyThiDGNLController extends Controller
                 'tong_diem' => $data['tong_diem'] ?? $defaultScore,
                 'tong_so_cau' => $data['tong_so_cau'],
                 'tong_cau_dung' => $data['tong_cau_dung'],
-                // cột trang_thai trong DB đang dùng enum/dạng ngắn (vd: 'draft','submitted')
-                // nên dùng 'submitted' để tránh lỗi data truncated
                 'trang_thai' => 'submitted',
                 'nhan_xet' => $request->input('nhan_xet'),
                 'completed_at' => now(),
@@ -120,13 +128,29 @@ class KyThiDGNLController extends Controller
     }
 
     /**
-    * Câu hỏi.
+    * Danh sách câu hỏi (chuẩn hóa field).
     */
     public function questions(): JsonResponse
     {
         try {
             $items = KyThiDGNLQuestion::orderBy('idquestion')->get();
-            return response()->json(['success' => true, 'data' => $items]);
+            $data = $items->map(function ($q) {
+                $type = $q->loai_cau ?? $q->type ?? null;
+                if (!$type && isset($q->is_multiple)) {
+                    $type = $q->is_multiple ? 'multiple_choice' : 'single_choice';
+                }
+                return [
+                    'idquestion'   => (int)($q->idquestion ?? $q->id ?? $q->question_id ?? 0),
+                    'idsection'    => (int)($q->idsection ?? $q->section_id ?? $q->id_section ?? 0),
+                    'noi_dung'     => (string)($q->noi_dung ?? $q->content ?? $q->title ?? ''),
+                    'loai_cau'     => (string)($type ?? 'single_choice'),
+                    'thu_tu'       => (int)($q->thu_tu ?? $q->order ?? 0),
+                    // Backend có thể lưu dạng "A,B"; giữ nguyên để frontend map sang id đáp án
+                    'dap_an_dung'  => (string)($q->dap_an_dung ?? $q->correct_letters ?? ''),
+                    'giai_thich'   => (string)($q->giai_thich ?? $q->explain ?? ''),
+                ];
+            });
+            return response()->json(['success' => true, 'data' => $data]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -137,13 +161,22 @@ class KyThiDGNLController extends Controller
     }
 
     /**
-    * Phương án trả lời.
+    * Phương án trả lời (chuẩn hóa field).
     */
     public function options(): JsonResponse
     {
         try {
             $items = KyThiDGNLOption::orderBy('idoption')->get();
-            return response()->json(['success' => true, 'data' => $items]);
+            $data = $items->map(function ($o) {
+                return [
+                    'idoption'   => (int)($o->idoption ?? $o->id ?? $o->option_id ?? 0),
+                    'idquestion' => (int)($o->idquestion ?? $o->question_id ?? $o->id_question ?? 0),
+                    'noi_dung'   => (string)($o->noi_dung ?? $o->content ?? ''),
+                    'is_correct' => (int)($o->is_correct ?? $o->correct ?? 0),
+                    'thu_tu'     => (int)($o->thu_tu ?? $o->order ?? 0),
+                ];
+            });
+            return response()->json(['success' => true, 'data' => $data]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -154,13 +187,24 @@ class KyThiDGNLController extends Controller
     }
 
     /**
-    * Section trong đề thi.
+    * Section trong đề thi (chuẩn hóa field).
     */
     public function sections(): JsonResponse
     {
         try {
             $items = KyThiDGNLSection::orderBy('idsection')->get();
-            return response()->json(['success' => true, 'data' => $items]);
+            $data = $items->map(function ($s) {
+                return [
+                    'idsection'       => (int)($s->idsection ?? $s->id ?? $s->section_id ?? 0),
+                    'idkythi'         => (int)($s->idkythi ?? $s->kythi_id ?? $s->exam_id ?? 0),
+                    'ten_section'     => (string)($s->ten_section ?? $s->name ?? $s->title ?? ''),
+                    'nhom_nang_luc'   => (string)($s->nhom_nang_luc ?? $s->group ?? ''),
+                    'so_cau'          => (int)($s->so_cau ?? $s->total_questions ?? 0),
+                    'thoi_luong_phut' => (int)($s->thoi_luong_phut ?? $s->duration ?? 0),
+                    'thu_tu'          => (int)($s->thu_tu ?? $s->order ?? 0),
+                ];
+            });
+            return response()->json(['success' => true, 'data' => $data]);
         } catch (\Exception $e) {
             return response()->json([
                 'success' => false,
@@ -187,5 +231,3 @@ class KyThiDGNLController extends Controller
         }
     }
 }
-
-

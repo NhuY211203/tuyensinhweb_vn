@@ -156,29 +156,22 @@ export default function ConsultantSchedule() {
   const fetchSchedules = async () => {
     try {
       setLoading(true);
-      // Xây dựng URL với các tham số filter
-      let url = `http://localhost:8000/api/consultation-schedules?consultant_id=${currentUserId}`;
-      
-      // Nếu là filter "Đã đăng ký", gửi booked_only=true
+      // Xây dựng params cho API service
+      const params = { consultant_id: currentUserId };
       if (approvalFilter === 'booked') {
-        url += '&booked_only=true';
+        params.booked_only = true;
       } else {
-        // Các filter khác gửi duyetlich
-        url += `&duyetlich=${approvalFilter}`;
+        params.duyetlich = approvalFilter;
       }
-      
-      // Thêm bộ lọc ngày
       if (dateFilter === 'range') {
-        if (startDate) url += `&start_date=${startDate}`;
-        if (endDate) url += `&end_date=${endDate}`;
+        if (startDate) params.start_date = startDate;
+        if (endDate) params.end_date = endDate;
       } else if (dateFilter && dateFilter !== 'all') {
-        url += `&date_filter=${dateFilter}`;
+        params.date_filter = dateFilter;
       }
+      const data = await api.get('/consultation-schedules', params);
       
-      const response = await fetch(url);
-      const data = await response.json();
-      
-      if (data.success) {
+      if (data?.success) {
         // Không giới hạn khung giờ → hiển thị tất cả
         const items = Array.isArray(data.data) ? data.data : [];
         setSchedules(items);
@@ -239,34 +232,16 @@ export default function ConsultantSchedule() {
     setSubmitting(true);
     
     try {
-      const url = editingSchedule 
-        ? `http://localhost:8000/api/consultation-schedules/${editingSchedule.idlichtuvan}`
-        : 'http://localhost:8000/api/consultation-schedules';
+      const endpoint = editingSchedule 
+        ? `/consultation-schedules/${editingSchedule.idlichtuvan}`
+        : '/consultation-schedules';
+      const requestData = { ...formData, consultant_id: currentUserId };
+      console.log('Endpoint:', endpoint); console.log('Request data:', requestData);
+      const data = editingSchedule
+        ? await api.put(endpoint, requestData)
+        : await api.post(endpoint, requestData);
       
-      const method = editingSchedule ? 'PUT' : 'POST';
-      
-      const requestData = {
-        ...formData,
-        consultant_id: currentUserId
-      };
-      
-      console.log('Request URL:', url);
-      console.log('Request method:', method);
-      console.log('Request data:', requestData);
-      
-      const response = await fetch(url, {
-        method,
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(requestData)
-      });
-      
-      console.log('Response status:', response.status);
-      const data = await response.json();
-      console.log('Response data:', data);
-      
-      if (data.success) {
+      if (data?.success) {
         toast.push({ type: 'success', title: editingSchedule ? 'Cập nhật lịch thành công' : 'Tạo lịch thành công' });
         setShowModal(false);
         fetchSchedules();
@@ -304,13 +279,8 @@ export default function ConsultantSchedule() {
     if (!confirm('Bạn có chắc chắn muốn xóa lịch này?')) return;
     
     try {
-      const response = await fetch(`http://localhost:8000/api/consultation-schedules/${id}`, {
-        method: 'DELETE'
-      });
-      
-      const data = await response.json();
-      
-      if (data.success) {
+      const data = await api.delete(`/consultation-schedules/${id}`);
+      if (data?.success) {
         toast.push({ type: 'success', title: 'Xóa lịch thành công' });
         fetchSchedules();
       } else {
@@ -335,33 +305,23 @@ export default function ConsultantSchedule() {
     setSubmitting(true);
     
     try {
-      const response = await fetch(`http://localhost:8000/api/consultation-schedules/${selectedScheduleForChange.idlichtuvan}/request-change`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          ngaymoi: changeRequestData.ngaymoi,
-          giomoi: changeRequestData.giomoi,
-          lydo_doilich: changeRequestData.lydo_doilich.trim(),
-          idnguoidung: currentUserId
-        })
+      const data = await api.post(`/consultation-schedules/${selectedScheduleForChange.idlichtuvan}/request-change`, {
+        ngaymoi: changeRequestData.ngaymoi,
+        giomoi: changeRequestData.giomoi,
+        lydo_doilich: changeRequestData.lydo_doilich.trim(),
+        idnguoidung: currentUserId
       });
       
-      const data = await response.json();
-      
-      if (data.success) {
+      if (data?.success) {
         toast.push({ type: 'success', title: 'Yêu cầu thay đổi lịch đã được gửi thành công' });
         setShowChangeRequestModal(false);
         setSelectedScheduleForChange(null);
         setChangeRequestData({ ngaymoi: '', giomoi: '', lydo_doilich: '' });
         fetchSchedules();
       } else {
-        // Xử lý lỗi trùng lịch (409 Conflict) hoặc các lỗi khác
         const errorMessage = data.message || 'Không thể gửi yêu cầu thay đổi lịch';
         console.error('API Error:', errorMessage);
         toast.push({ type: 'error', title: errorMessage });
-        // Backup: hiển thị alert nếu toast không hoạt động
         alert(errorMessage);
       }
     } catch (error) {
@@ -376,11 +336,9 @@ export default function ConsultantSchedule() {
   const fetchChangeRequests = async (scheduleId) => {
     try {
       setLoadingChangeRequests(true);
-      const response = await fetch(`http://localhost:8000/api/consultation-schedules/${scheduleId}/change-requests`);
-      const data = await response.json();
-      
-      if (data.success) {
-        setChangeRequests(data.data);
+      const data = await api.get(`/consultation-schedules/${scheduleId}/change-requests`);
+      if (data?.success) {
+        setChangeRequests(data.data || []);
       } else {
         toast.push({ type: 'error', title: 'Không thể tải yêu cầu thay đổi lịch' });
       }

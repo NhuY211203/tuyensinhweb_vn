@@ -1,4 +1,5 @@
 import { useMemo, useState, useRef, useEffect } from "react";
+import api from "../../services/api";
 
 /**
  * Predictions — màn hình Dự đoán & Đánh giá cơ hội
@@ -96,20 +97,17 @@ export default function Predictions() {
     async function loadMeta(){
       try {
         const [combosRes, majorsRes] = await Promise.all([
-          fetch('/api/tohop-xettuyen?perPage=200').catch(()=>fetch('http://127.0.0.1:8000/api/tohop-xettuyen?perPage=200')),
-          fetch('/api/majors-all').catch(()=>fetch('http://127.0.0.1:8000/api/majors-all')),
+          api.get('/tohop-xettuyen', { perPage: 200 }),
+          api.get('/majors-all'),
         ]);
         if (!mounted) return;
-        if (combosRes?.ok){
-          const data = await combosRes.json();
-          const opts = (data.data||[]).map(c=>({ code: c.ma_to_hop, label: `${c.ma_to_hop} (${c.mo_ta||''})` }));
+        const combosList = (combosRes?.data ?? combosRes) || [];
+        const opts = combosList.map(c=>({ code: c.ma_to_hop || c.code, label: c.mo_ta ? `${c.ma_to_hop || c.code} (${c.mo_ta})` : (c.label || c.ma_to_hop || c.code) }));
           setCombos(opts);
           if (opts.length && !thpt.tohop){ setThpt(p=>({ ...p, tohop: opts[0].code })); }
-        }
-        if (majorsRes?.ok){
-          const data = await majorsRes.json();
-          setMajorsAll((data.data||[]).map(m=>({ manganh: m.manganh, tennganh: m.tennganh })));
-        }
+        const majorsList = (majorsRes?.data ?? majorsRes) || [];
+        setMajorsAll(majorsList.map(m=>({ manganh: m.manganh, tennganh: m.tennganh })));
+        
       } catch(_){}
     }
     loadMeta();
@@ -123,50 +121,30 @@ export default function Predictions() {
     let mounted = true;
     async function loadCombosForMajor(){
       try {
-        const selected = majorSelected || majorsAll.find(m=>m.manganh===thpt.manganh);
-        const idtruong = selected?.idtruong;
-        const manganh = selected?.manganh;
         const idx = methodIdx[method.code];
-        if (!idtruong || !manganh || !idx){ return; }
-
-        const path = `/api/majors/${encodeURIComponent(idtruong)}/${encodeURIComponent(manganh)}/methods/${encodeURIComponent(idx)}?nam=2024`;
-        const res = await fetch(path).catch(()=>fetch(`http://127.0.0.1:8000${path}`));
+        if (thpt.manganh) {
+          const res = await api.get('/tohop-xettuyen', { manganh: thpt.manganh, idxettuyen: idx, nam: 2024 });
         if (!mounted) return;
-        if (res?.ok){
-          const json = await res.json();
-          let list = (json.data?.tohop || json.tohop || []);
-          // Nếu API không trả mảng tohop, nhưng có chuỗi tohopmon: "A00;A01;D01"
-          if ((!Array.isArray(list) || list.length===0)) {
-            const str = json.data?.tohopmon || json.tohopmon || json.data?.to_hop_mon || json.to_hop_mon;
-            if (typeof str === 'string' && str.trim()) {
-              list = str.split(';').map(s => ({ code: s.trim(), diemchuan: undefined }));
-            }
-          }
-
-          const opts = (list||[])
-            .filter(t => t && t.code)
-            .map(t=>({ code: t.code, label: t.diemchuan!=null ? `${t.code} — chuẩn ${Number(t.diemchuan||0).toFixed(2)}` : t.code }));
-          const thMap = (list||[]).reduce((acc, t)=>{ if (t?.code) acc[t.code] = Number(t.diemchuan||0); return acc; }, {});
+          const list = (res?.data ?? res) || [];
+          const opts = list.map(c=>({ code: c.ma_to_hop || c.code, label: c.mo_ta ? `${c.ma_to_hop || c.code} (${c.mo_ta})` : (c.label || c.ma_to_hop || c.code) }));
           if (opts.length){
             setCombos(opts);
-            setComboThresholds(thMap);
+            setComboThresholds({});
             setThpt(p=>({ ...p, tohop: opts.find(o=>o.code===p.tohop)?.code || opts[0].code }));
             setHbToHop(p=>({ ...p, tohop: opts.find(o=>o.code===p.tohop)?.code || opts[0].code }));
-          }
           return;
+          }
         }
       } catch(_){ /* fallback below */ }
 
-      // Fallback: giữ luồng cũ
+      // Fallback: lấy danh mục tổ hợp chung
       try {
-        const res = await fetch('/api/tohop-xettuyen?perPage=200').catch(()=>fetch('http://127.0.0.1:8000/api/tohop-xettuyen?perPage=200'));
+        const res = await api.get('/tohop-xettuyen', { perPage: 200 });
         if (!mounted) return;
-        if (res?.ok){
-          const data = await res.json();
-          const opts = (data.data||[]).map(c=>({ code: c.ma_to_hop, label: `${c.ma_to_hop} (${c.mo_ta||''})` }));
+        const list = (res?.data ?? res) || [];
+        const opts = list.map(c=>({ code: c.ma_to_hop || c.code, label: c.mo_ta ? `${c.ma_to_hop || c.code} (${c.mo_ta})` : (c.label || c.ma_to_hop || c.code) }));
           setCombos(opts);
           setComboThresholds({});
-        }
       } catch(_){ }
     }
     loadCombosForMajor();
@@ -205,15 +183,11 @@ export default function Predictions() {
       if (!currentToHop) { setAllowedByCombo(new Set()); return; }
       try {
         // Ưu tiên endpoint chuyên lọc theo tổ hợp
-        const res = await fetch(`/api/majors-by-combo?tohop=${encodeURIComponent(currentToHop)}`).catch(()=>fetch(`http://127.0.0.1:8000/api/majors-by-combo?tohop=${encodeURIComponent(currentToHop)}`));
+        const res = await api.get('/majors-by-combo', { tohop: currentToHop });
         if (!mounted) return;
-        if (res?.ok){
-          const json = await res.json();
+        const json = res || {};
           const only = new Set((json.data||[]).map(r=>r.manganh).filter(Boolean));
           setAllowedByCombo(only);
-        } else {
-          setAllowedByCombo(new Set());
-        }
       } catch(_){ setAllowedByCombo(new Set()); }
     }
     loadMajorsByCombo();
@@ -294,10 +268,7 @@ export default function Predictions() {
       if (thpt.manganh) params.append('manganh', thpt.manganh);
 
       // Ưu tiên gọi API backend tổng hợp dự đoán
-      const predictRes = await fetch('/api/predict', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
+      const predictPayload = {
           idxettuyen: idx,
           tohop: currentToHop,
           nam: 2024,
@@ -307,11 +278,11 @@ export default function Predictions() {
                  : method.code==='DGNL' ? { dgnl: dgnl.dgnl } : {},
           bonuses: {},
           weights: []
-        })
-      }).catch(()=>fetch('http://127.0.0.1:8000/api/predict', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ idxettuyen: idx, tohop: thpt.tohop, nam: 2024, manganh: thpt.manganh || undefined }) }));
+      };
+      let pr = null;
+      try { pr = await api.post('/predict', predictPayload); } catch (_) { pr = null; }
 
-      if (predictRes && predictRes.ok){
-        const pr = await predictRes.json();
+      if (pr && (pr.summary || pr.rankings)){
         setPrediction({ summary: pr.summary, rankings: pr.rankings, alternatives: pr.alternatives });
         const probForHeader = (pr.rankings && pr.rankings[0]?.prob) ?? mapDeltaToProb(pr.summary?.delta_vs_median ?? 0);
         const explain = `Tổng ${pr.summary?.total_score ?? 0} | ${pr.summary?.tohop || ''} – ${method.title} | ${pr.summary?.verdict} | Δ ${pr.summary?.delta_vs_median ?? 0}`;
@@ -320,8 +291,10 @@ export default function Predictions() {
       }
 
       // Fallback: tự tổng hợp từ /diemchuan
-      const res = await fetch(`/api/diemchuan?${params}`).catch(()=>fetch(`http://127.0.0.1:8000/api/diemchuan?${params}`));
-      const data = res?.ok ? await res.json() : { data: [] };
+      const paramsObj = { tohop: currentToHop, idxettuyen: idx, perPage: 100, nam: 2024 };
+      if (thpt.manganh) paramsObj.manganh = thpt.manganh;
+      let data = { data: [] };
+      try { data = await api.get('/diemchuan', paramsObj); } catch (_) { data = { data: [] }; }
       const rows = (data.data || []).filter(r => r && (r.diemchuan!=null));
 
       // 3) Lập bảng xếp hạng

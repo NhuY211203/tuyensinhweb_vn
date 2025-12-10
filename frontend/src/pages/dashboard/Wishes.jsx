@@ -21,7 +21,7 @@ export default function Wishes(){
           <li>Đăng nhập bằng <b>Tên đăng nhập</b> (số CMND/CCCD hoặc mã định danh), <b>Mật khẩu</b> và <b>Mã xác nhận</b>.</li>
           <li>Nếu đã đổi mật khẩu sau khi đăng ký dự thi, sử dụng mật khẩu mới để đăng nhập.</li>
         </ul>
-        <img src="/Bước 1.jpg" alt="Bước 1 - Đăng nhập hệ thống" className="mt-3 rounded border w-full h-auto" />
+        <img src="/app/Bước 1.jpg" alt="Bước 1 - Đăng nhập hệ thống" className="mt-3 rounded border w-full h-auto" />
       </div>
 
       {/* Bước 2 */}
@@ -41,7 +41,7 @@ export default function Wishes(){
           <p>Đối với thí sinh muốn tiếp tục xét tuyển chọn tiếp chọn mục <b>02 "Thêm nguyện vọng"</b> và thực hiện tiếp bước 3.</p>
           <p className="text-orange-600"><b>Lưu ý:</b> Đối với thí sinh đã trúng tuyển sớm có điều kiện tại và mong muốn học tại HUFLIT nên chọn trường ở nguyện vọng đầu tiên để chính thức trở thành tân sinh viên của HUFLIT với nhiều học bổng hấp dẫn.</p>
         </div>
-        <img src="/2-7.jpg" alt="Bước 2 - Khai báo thông tin xét tuyển" className="mt-3 rounded border w-full h-auto" />
+        <img src="/app/2-7.jpg" alt="Bước 2 - Khai báo thông tin xét tuyển" className="mt-3 rounded border w-full h-auto" />
       </div>
 
       {/* Bước 3 */}
@@ -53,9 +53,9 @@ export default function Wishes(){
           <li>Có thể sửa, xóa hoặc sắp xếp lại thứ tự nguyện vọng theo nhu cầu.</li>
           <li>Mỗi thao tác đều yêu cầu xác nhận bằng mã OTP được gửi về số điện thoại đã đăng ký.</li>
         </ul>
-        <img src="/3-7.jpg" alt="Bước 3 - Danh sách nguyện vọng" className="mt-3 rounded border w-full h-auto" />
-        <img src="/2-7.jpg" alt="Bước 3 - Chọn ngành/phương thức" className="mt-3 rounded border w-full h-auto" />
-        <img src="/7-2.jpg" alt="Bước 3 - Xác nhận thêm nguyện vọng" className="mt-3 rounded border w-full h-auto" />
+        <img src="/app/3-7.jpg" alt="Bước 3 - Danh sách nguyện vọng" className="mt-3 rounded border w-full h-auto" />
+        <img src="/app/2-7.jpg" alt="Bước 3 - Chọn ngành/phương thức" className="mt-3 rounded border w-full h-auto" />
+        <img src="/app/7-2.jpg" alt="Bước 3 - Xác nhận thêm nguyện vọng" className="mt-3 rounded border w-full h-auto" />
       </div>
 
       {/* Bước 4 */}
@@ -66,7 +66,7 @@ export default function Wishes(){
           <li>Hệ thống sẽ yêu cầu xác nhận bằng mã OTP – thí sinh soạn tin nhắn lấy mã và nhập vào hệ thống.</li>
           <li>Nhấn <b>"Xác nhận đăng ký"</b> để hoàn tất.</li>
         </ul>
-        <img src="/4-5.jpg" alt="Bước 4 - Xác nhận thông tin đăng ký" className="mt-3 rounded border w-full h-auto" />
+        <img src="/app/4-5.jpg" alt="Bước 4 - Xác nhận thông tin đăng ký" className="mt-3 rounded border w-full h-auto" />
       </div>
 
       {/* Bước 5 */}
@@ -76,7 +76,7 @@ export default function Wishes(){
           <li>Sau khi xác nhận đăng ký, truy cập lại mục <b>"Đăng ký thông tin xét tuyển sinh"</b> và nhấn nút <b>"Thanh toán"</b>.</li>
           <li>Thực hiện thanh toán trực tuyến theo hướng dẫn trên hệ thống.</li>
         </ul>
-        <img src="/5-5.jpg" alt="Bước 5 - Thanh toán lệ phí xét tuyển" className="mt-3 rounded border w-full h-auto" />
+        <img src="/app/5-5.jpg" alt="Bước 5 - Thanh toán lệ phí xét tuyển" className="mt-3 rounded border w-full h-auto" />
       </div>
 
       {/* Bước 6 */}
@@ -86,7 +86,7 @@ export default function Wishes(){
           <li>Hệ thống sẽ cập nhật trạng thái <b>"Đã thanh toán"</b> cho các nguyện vọng.</li>
           <li>Thí sinh có thể in danh sách nguyện vọng đã đăng ký và biên lai thanh toán để lưu trữ đối chiếu khi cần.</li>
         </ul>
-        <img src="/6-3.jpg" alt="Bước 6 - In danh sách và biên lai" className="mt-3 rounded border w-full h-auto" />
+        <img src="/app/6-3.jpg" alt="Bước 6 - In danh sách và biên lai" className="mt-3 rounded border w-full h-auto" />
       </div>
 
       {/* Thời gian cần lưu ý */}

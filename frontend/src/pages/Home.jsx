@@ -1,28 +1,26 @@
 
 import { Link } from "react-router-dom";
 import { useEffect, useState } from "react";
+import api from "../services/api";
 
 export default function Home() {
   const [stats, setStats] = useState({ universities: 0, majors: 0, years: 0 });
 
   useEffect(() => {
     let isMounted = true;
-    async function load() {
+    (async () => {
       try {
-        const res = await fetch("/api/stats").catch(() => 
-          fetch("http://127.0.0.1:8000/api/stats")
-        );
+        const data = await api.get("/site-stats");
         if (!isMounted) return;
-        if (!res.ok) throw new Error("Failed to fetch stats");
-        const data = await res.json();
         setStats({
           universities: data.universities ?? 0,
           majors: data.majors ?? 0,
           years: data.years ?? 0,
         });
-      } catch {}
-    }
-    load();
+      } catch (e) {
+        console.error("Load stats failed:", e);
+      }
+    })();
     return () => { isMounted = false; };
   }, []);
   return (
@@ -90,7 +88,6 @@ export default function Home() {
   );
 }
 
-
 // import { Link } from "react-router-dom";
 
 // export default function Home() {
@@ -131,3 +128,4 @@ export default function Home() {
 //     </div>
 //   );
 // }
+

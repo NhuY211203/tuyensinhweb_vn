@@ -1,4 +1,4 @@
-const API_BASE_URL = 'http://localhost:8000/api';
+const API_BASE_URL = 'https://hoahoctro.42web.io/laravel/public/api';
 
 class ApiService {
   constructor() {
@@ -752,15 +752,6 @@ class ApiService {
     return this.post(`/admin/dgnl-exams/${idkythi}/questions`, data);
   }
 
-  // New split update endpoints
-  async updateDGNLQuestionBasic(id, data) {
-    return this.put(`/admin/dgnl-exams/questions/${id}/basic`, data);
-  }
-  async updateDGNLQuestionOptions(id, options) {
-    return this.put(`/admin/dgnl-exams/questions/${id}/options`, { options });
-  }
-
-  // Old monolithic update (no longer used)
   async updateDGNLQuestion(id, data) {
     return this.put(`/admin/dgnl-exams/questions/${id}`, data);
   }

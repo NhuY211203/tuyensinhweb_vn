@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Toast from "../../components/Toast";
+import apiService from "../../services/api";
 
 
 const emptyNewRecord = {
@@ -18,6 +19,7 @@ export default function DataManagement() {
   const [page, setPage] = useState(1);
   const [lastPage, setLastPage] = useState(1);
   const [total, setTotal] = useState(0);
+  const [pageSize, setPageSize] = useState(100);
   const [toast, setToast] = useState({ show: false, message: "", type: "success" });
 
   // Filters
@@ -46,10 +48,8 @@ export default function DataManagement() {
   const fetchUniversities = async () => {
     setLoadingUniversities(true);
     try {
-      const response = await fetch('http://localhost:8000/api/truongdaihoc?perPage=1000&page=1');
-      const data = await response.json();
-      
-      if (data.data) {
+      const data = await apiService.get('/truongdaihoc', { perPage: 1000, page: 1 });
+      if (data?.data) {
         setUniversities(data.data);
       }
     } catch (error) {
@@ -62,10 +62,9 @@ export default function DataManagement() {
   const fetchMajors = async () => {
     setLoadingMajors(true);
     try {
-      const response = await fetch('http://localhost:8000/api/nganhhoc?perPage=1000&page=1');
-      const data = await response.json();
+      const data = await apiService.get('/nganhhoc', { perPage: 1000, page: 1 });
       
-      if (data.data) {
+      if (data?.data) {
         setMajors(data.data);
       }
     } catch (error) {
@@ -79,7 +78,7 @@ export default function DataManagement() {
     setLoading(true);
     try {
       const params = new URLSearchParams();
-      params.set("perPage", "20");
+      params.set("perPage", String(pageSize));
       params.set("page", String(p));
       if (filterUniversity) params.set("idtruong", String(filterUniversity));
       if (filterMajor) params.set("manganh", String(filterMajor));
@@ -87,15 +86,7 @@ export default function DataManagement() {
       if (filterMethod) params.set("idxettuyen", String(filterMethod));
       if (filterKeyword) params.set("keyword", filterKeyword.trim());
 
-      const url = `http://localhost:8000/api/diemchuan?${params.toString()}`;
-      
-      const res = await fetch(url);
-      
-      if (!res.ok) {
-        throw new Error(`HTTP ${res.status}: ${res.statusText}`);
-      }
-      
-      const data = await res.json();
+      const data = await apiService.get('/diemchuan', Object.fromEntries(params));
 
       // Laravel pagination structure - check actual response format
       let list = [];
@@ -103,12 +94,13 @@ export default function DataManagement() {
       let totalPages = 1;
       let totalItems = 0;
 
-      if (data.data) {
-        // Standard Laravel pagination
+      if (data?.data) {
         list = data.data;
-        currentPage = data.current_page || 1;
-        totalPages = data.last_page || 1;
-        totalItems = data.total || 0;
+        // Handle both direct pagination and nested pagination object
+        const pagination = data.pagination || data;
+        currentPage = pagination.current_page || 1;
+        totalPages = pagination.last_page || 1;
+        totalItems = pagination.total || 0;
       } else if (Array.isArray(data)) {
         // Direct array response
         list = data;
@@ -143,7 +135,7 @@ export default function DataManagement() {
     }, filterKeyword ? 500 : 0); // 500ms delay for keyword, immediate for dropdowns
     
     return () => clearTimeout(timeoutId);
-  }, [filterUniversity, filterMajor, filterYear, filterMethod, filterKeyword]);
+  }, [filterUniversity, filterMajor, filterYear, filterMethod, filterKeyword, pageSize]);
 
   const submitNewRecord = async (e) => {
     e.preventDefault();
@@ -151,15 +143,7 @@ export default function DataManagement() {
     setSubmitMessage("");
     
     try {
-      const response = await fetch('http://localhost:8000/api/diemchuan', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(newRecord)
-      });
-      
-      const data = await response.json();
+      const data = await apiService.post('/diemchuan', newRecord);
       
       if (data.success) {
         setSubmitMessage("✅ " + data.message);
@@ -205,8 +189,7 @@ export default function DataManagement() {
                   try {
                     const form = new FormData();
                     form.append('file', file);
-                    const res = await fetch('http://localhost:8000/api/diemchuan/import', { method: 'POST', body: form });
-                    const data = await res.json();
+                    const data = await apiService.request('/diemchuan/import', { method: 'POST', body: form });
                     if (data.success) {
                       const s = data.summary || {};
                       showToast(`Nhập CSV thành công: thêm ${s.created||0}, cập nhật ${s.updated||0}, lỗi ${s.failed||0}`,'success');
@@ -234,8 +217,7 @@ export default function DataManagement() {
                   if (filterYear) params.set('nam', String(filterYear));
                   if (filterMethod) params.set('idxettuyen', String(filterMethod));
                   if (filterKeyword) params.set('keyword', filterKeyword.trim());
-                  const res = await fetch(`http://localhost:8000/api/diemchuan/export?${params.toString()}`);
-                  const data = await res.json();
+                  const data = await apiService.get('/diemchuan/export', Object.fromEntries(params));
                   if (data.success) {
                     // Convert to CSV
                     const headers = ['Trường','Ngành','Năm','PT','Tổ hợp','Điểm','Ghi chú'];
@@ -484,7 +466,19 @@ export default function DataManagement() {
 
         <div className="flex items-center justify-between mb-3">
           <h2 className="font-semibold">Bảng dữ liệu</h2>
-          <div className="text-sm text-gray-500">Tổng: {total} | Trang: {page}/{lastPage} | Rows: {rows.length}</div>
+          <div className="flex items-center gap-3">
+            <div className="text-sm text-gray-500">Tổng: {total} | Trang: {page}/{lastPage} | Rows: {rows.length}</div>
+            <div className="flex items-center gap-2">
+              <span className="text-sm">Hiển thị</span>
+              <select className="input w-20" value={pageSize} onChange={(e)=>setPageSize(Number(e.target.value))}>
+                <option value={20}>20</option>
+                <option value={50}>50</option>
+                <option value={100}>100</option>
+                <option value={200}>200</option>
+              </select>
+              <span className="text-sm">/ trang</span>
+            </div>
+          </div>
         </div>
         {total === 0 && !loading && (
           <div className="mb-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">

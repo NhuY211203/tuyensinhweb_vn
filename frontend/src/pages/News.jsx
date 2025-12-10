@@ -1,22 +1,5 @@
-import { useState, useEffect, useMemo } from "react";
-
-const colorPalette = [
-  {
-    badgeBg: "bg-[#E3F5EE]",
-    badgeText: "text-[#0F8B6E]",
-    border: "border-[#BDE9D4]",
-    pillActive: "from-[#34D399] to-[#0D9488]",
-  },
-];
-
-const getCategoryAccent = () => colorPalette[0];
-
-const getArticleSummary = (item) => {
-  if (!item) return "Thông tin đang được cập nhật.";
-  const summary =
-    (item.tom_tat || item.noi_dung_ngan || item.noi_dung || "").trim();
-  return summary || "Thông tin đang được cập nhật.";
-};
+import { useState, useEffect } from "react";
+import api from "../services/api";
 
 export default function News() {
   const [news, setNews] = useState([]);
@@ -24,34 +7,27 @@ export default function News() {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalRecords, setTotalRecords] = useState(0);
-  const [activeCategory, setActiveCategory] = useState("Tất cả");
-  const perPage = 20;
+  const [perPage, setPerPage] = useState(12);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filterLoaiTin, setFilterLoaiTin] = useState("");
+  const [filterTruong, setFilterTruong] = useState("");
+  const [universities, setUniversities] = useState([]);
 
   // Load news
-  const loadNews = async (page = 1, per_page = 20) => {
+  const loadNews = async (page = 1, keyword = "", loai_tin = "", id_truong = "", per_page = 12) => {
     setLoading(true);
     try {
-      const params = new URLSearchParams({
-        page: page.toString(),
-        per_page: per_page.toString(),
-      });
-      
-      const url = `/api/tin-tuyen-sinh?${params}`;
-      const response = await fetch(url).catch((err) => {
-        return fetch(`http://localhost:8000/api/tin-tuyen-sinh?${params}`);
-      });
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data.success) {
+      const params = { page, per_page };
+      if (keyword) params.keyword = keyword;
+      if (loai_tin) params.loai_tin = loai_tin;
+      if (id_truong) params.id_truong = id_truong;
+
+      const data = await api.get('/tin-tuyen-sinh', params);
+      if (data?.success) {
         setNews(data.data || []);
         setTotalPages(data.pagination?.last_page || 1);
         setTotalRecords(data.pagination?.total || 0);
-        setCurrentPage(data.pagination?.current_page || 1);
+        setCurrentPage(data.pagination?.current_page || page);
       } else {
         setNews([]);
       }
@@ -63,30 +39,32 @@ export default function News() {
     }
   };
 
-  // Load news on mount
+  // Load universities for filter
   useEffect(() => {
-    loadNews(1, perPage);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    const loadUniversities = async () => {
+      try {
+        const data = await api.get('/truongdaihoc', { perPage: 200, page: 1 });
+        const list = (data?.data ?? data) || [];
+        setUniversities(list);
+      } catch (error) {
+        console.error('Error loading universities:', error);
+        setUniversities([]);
+      }
+    };
+    loadUniversities();
   }, []);
 
-  const categories = useMemo(() => {
-    const set = new Set();
-    news.forEach((item) => {
-      if (item?.loai_tin) set.add(item.loai_tin);
-    });
-    return ["Tất cả", ...Array.from(set)];
-  }, [news]);
-
+  // Load news on mount and when filters change
   useEffect(() => {
-    if (activeCategory !== "Tất cả" && !categories.includes(activeCategory)) {
-      setActiveCategory("Tất cả");
-    }
-  }, [categories, activeCategory]);
+    const timeoutId = setTimeout(() => {
+      loadNews(1, searchTerm, filterLoaiTin, filterTruong, perPage);
+      // Smooth scroll to top
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }, searchTerm ? 300 : 0);
 
-  const filteredNews = useMemo(() => {
-    if (activeCategory === "Tất cả") return news;
-    return news.filter((item) => item.loai_tin === activeCategory);
-  }, [news, activeCategory]);
+    return () => clearTimeout(timeoutId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchTerm, filterLoaiTin, filterTruong, perPage]);
 
   const formatDate = (dateString) => {
     if (!dateString) return "";
@@ -96,6 +74,27 @@ export default function News() {
       month: '2-digit',
       year: 'numeric'
     });
+  };
+
+  const getLoaiTinColor = (loaiTin) => {
+    const colors = {
+      'Tin tuyển sinh': 'bg-teal-100 text-teal-800 border-teal-200',
+      'Thông báo': 'bg-indigo-100 text-indigo-800 border-indigo-200',
+      'Học bổng': 'bg-amber-100 text-amber-800 border-amber-200',
+      'Sự kiện': 'bg-purple-100 text-purple-800 border-purple-200',
+      'Khác': 'bg-gray-100 text-gray-800 border-gray-200'
+    };
+    return colors[loaiTin] || colors['Khác'];
+  };
+
+  // Check if news is expiring soon (within 7 days)
+  const isExpiringSoon = (ngayHetHan) => {
+    if (!ngayHetHan) return false;
+    const expiry = new Date(ngayHetHan);
+    const today = new Date();
+    const diffTime = expiry - today;
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return diffDays > 0 && diffDays <= 7;
   };
 
   // Get optimized image URL
@@ -120,279 +119,264 @@ export default function News() {
   };
 
   const handlePageChange = (newPage) => {
-    loadNews(newPage, perPage);
-    window.scrollTo({ top: 0, behavior: "smooth" });
+    loadNews(newPage, searchTerm, filterLoaiTin, filterTruong, perPage);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
-  const heroNews = useMemo(() => (filteredNews.length > 0 ? filteredNews[0] : null), [filteredNews]);
-  const highlightNews = useMemo(() => filteredNews.slice(1, 4), [filteredNews]);
-  const listNews = useMemo(() => filteredNews.slice(4), [filteredNews]);
+  const handleResetFilters = () => {
+    setSearchTerm("");
+    setFilterLoaiTin("");
+    setFilterTruong("");
+    loadNews(1, "", "", "", perPage);
+  };
 
-  const SkeletonLine = ({ width = "100%" }) => (
-    <div className={`h-4 bg-gray-200 rounded animate-pulse`} style={{ width }} />
+  // Skeleton loader component
+  const SkeletonCard = () => (
+    <div className="rounded-2xl border border-neutral-200 shadow-sm h-[360px] overflow-hidden">
+      <div className="aspect-[16/9] w-full bg-gray-200 animate-pulse" />
+      <div className="p-3 space-y-3">
+        <div className="h-4 bg-gray-200 rounded w-20 animate-pulse" />
+        <div className="h-5 bg-gray-200 rounded w-full animate-pulse" />
+        <div className="h-4 bg-gray-200 rounded w-3/4 animate-pulse" />
+        <div className="h-3 bg-gray-200 rounded w-1/2 animate-pulse" />
+        <div className="h-9 bg-gray-200 rounded animate-pulse" />
+      </div>
+    </div>
   );
 
   return (
-    <div className="min-h-screen bg-gradient-to-b from-[#E8FFF6] via-white to-[#E5F4FF]">
-      <div className="max-w-6xl mx-auto px-4 py-10">
-        <header className="mb-8 rounded-2xl p-6 border border-[#C7F1E1] shadow-sm bg-gradient-to-r from-[#E9FFF5] via-white to-[#F0FFF9]">
-          <h1 className="text-4xl font-bold text-gray-900">
+    <div className="min-h-screen bg-gray-50">
+      {/* Hero Section */}
+      <div className="bg-gradient-to-r from-teal-600 to-emerald-600 text-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+          <h1 className="text-2xl md:text-3xl font-semibold text-white">
             Tin tức tuyển sinh
           </h1>
-          <p className="text-sm text-gray-600 mt-3">
-            Cập nhật nhanh các bài viết tuyển sinh, thông báo và học bổng mới nhất.
+          <p className="text-white/90 text-sm md:text-base mt-1">
+            Cập nhật thông tin tuyển sinh mới nhất từ các trường đại học
           </p>
-        </header>
+        </div>
+      </div>
 
-        {/* Category tabs */}
-        <div className="flex flex-wrap gap-3 pb-4 mb-8">
-          {categories.map((tab) => (
-            <button
-              key={tab}
-              type="button"
-              onClick={() => setActiveCategory(tab)}
-              className={`px-5 py-2 rounded-full text-sm font-medium border transition-all duration-200 ${
-                tab === activeCategory
-                  ? "text-white shadow-md bg-gradient-to-r from-[#34D399] via-[#0FB981] to-[#0D9488] border-transparent"
-                  : "text-gray-600 border-gray-200 hover:border-[#0FB981] hover:text-[#0F8B6E]"
-              }`}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 -mt-8 relative z-10">
+        {/* Filter Bar - Floating Card */}
+        <div className="bg-white rounded-2xl shadow-md p-4 mb-6">
+          <div className="grid grid-cols-1 md:grid-cols-4 gap-3">
+            {/* Search */}
+            <div className="relative">
+              <input
+                type="text"
+                placeholder="Tìm kiếm tin tức..."
+                className="w-full px-4 py-2 border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-transparent"
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                aria-label="Tìm kiếm tin tức"
+              />
+            </div>
+
+            {/* Loại tin */}
+            <select
+              className="px-4 py-2 border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-transparent"
+              value={filterLoaiTin}
+              onChange={(e) => setFilterLoaiTin(e.target.value)}
+              aria-label="Chọn loại tin"
             >
-              {tab}
-            </button>
-          ))}
-        </div>
+              <option value="">Tất cả loại tin</option>
+              <option value="Tin tuyển sinh">Tin tuyển sinh</option>
+              <option value="Thông báo">Thông báo</option>
+              <option value="Học bổng">Học bổng</option>
+              <option value="Sự kiện">Sự kiện</option>
+              <option value="Khác">Khác</option>
+            </select>
 
-        {/* Hero and highlight */}
-        {loading ? (
-          <div className="space-y-4">
-            <div className="h-64 bg-gray-200 rounded-2xl animate-pulse" />
-            <div className="grid md:grid-cols-3 gap-4">
-              {[0, 1, 2].map((i) => (
-                <div key={i} className="space-y-3 bg-white p-4 rounded-xl shadow">
-                  <div className="h-24 bg-gray-200 rounded animate-pulse" />
-                  <SkeletonLine width="80%" />
-                  <SkeletonLine width="60%" />
-        </div>
+            {/* Trường */}
+            <select
+              className="px-4 py-2 border border-neutral-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-teal-600 focus:border-transparent"
+              value={filterTruong}
+              onChange={(e) => setFilterTruong(e.target.value)}
+              aria-label="Chọn trường"
+            >
+              <option value="">Tất cả trường</option>
+              {universities.map((u) => (
+                <option key={u.idtruong} value={u.idtruong}>
+                  {u.tentruong}
+                </option>
               ))}
+            </select>
+
+            {/* Actions */}
+            <div className="flex gap-2">
+              <button
+                onClick={handleResetFilters}
+                className="px-4 py-2 border border-neutral-200 rounded-xl hover:bg-gray-50 transition-colors flex-1"
+                aria-label="Làm mới bộ lọc"
+              >
+                🔄 Làm mới
+              </button>
             </div>
           </div>
+
+          {/* Results count & Per page */}
+          {!loading && (
+            <div className="flex items-center justify-between mt-4 pt-4 border-t border-neutral-200">
+              <span className="text-sm text-gray-600">
+                {totalRecords > 0 ? `${totalRecords} kết quả` : 'Không có kết quả'}
+              </span>
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-gray-600">Hiển thị:</span>
+                <select
+                  className="px-2 py-1 text-sm border border-neutral-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-teal-600"
+                  value={perPage}
+                  onChange={(e) => {
+                    setPerPage(Number(e.target.value));
+                    setCurrentPage(1);
+                  }}
+                >
+                  <option value={12}>12</option>
+                  <option value={24}>24</option>
+                  <option value={48}>48</option>
+                </select>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* News Grid */}
+        {loading ? (
+          <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {[...Array(8)].map((_, i) => (
+              <SkeletonCard key={i} />
+            ))}
+          </div>
         ) : news.length === 0 ? (
-          <div className="bg-white rounded-2xl shadow p-10 text-center text-gray-500">
-            Hiện chưa có bài viết nào.
+          <div className="bg-white rounded-2xl border border-neutral-200 shadow-sm p-12 text-center">
+            <div className="text-6xl mb-4">📰</div>
+            <p className="text-gray-500 text-lg mb-4">Không có tin phù hợp</p>
+            {(searchTerm || filterLoaiTin || filterTruong) && (
+              <button
+                onClick={handleResetFilters}
+                className="px-6 py-2 bg-teal-600 text-white rounded-xl hover:bg-teal-700 transition-colors"
+              >
+                Xóa bộ lọc
+              </button>
+            )}
           </div>
         ) : (
           <>
-            {heroNews && (
-              <div className="grid lg:grid-cols-2 gap-6 mb-10">
-                <NewsCardLarge item={heroNews} getImageUrl={getImageUrl} formatDate={formatDate} />
-                <div className="grid gap-4">
-                  {highlightNews.map((item) => (
-                    <NewsCardHighlight
-                      key={item.id_tin}
-                      item={item}
-                      getImageUrl={getImageUrl}
-                      formatDate={formatDate}
-                    />
-                  ))}
-                </div>
-              </div>
-            )}
+            <div className="grid gap-5 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 mb-8">
+              {news.map((item) => {
+                const imageUrl = getImageUrl(item);
+                const expiringSoon = isExpiringSoon(item.ngay_het_han);
+                
+                return (
+                  <div
+                    key={item.id_tin}
+                    className="bg-white rounded-2xl border border-neutral-200 shadow-sm hover:shadow-md transition-all h-[360px] flex flex-col overflow-hidden focus-visible:ring-2 focus-visible:ring-teal-600"
+                  >
+                    {/* Image */}
+                    <div className="relative aspect-[16/9] w-full overflow-hidden">
+                      {imageUrl ? (
+                        <img
+                          src={imageUrl}
+                          alt={`${item.tieu_de} - ${item.tentruong || ''}`}
+                          className="h-full w-full object-cover"
+                          onError={(e) => {
+                            e.target.style.display = 'none';
+                            e.target.nextElementSibling?.classList.remove('hidden');
+                          }}
+                        />
+                      ) : null}
+                      <div className={`absolute inset-0 bg-gray-200 flex items-center justify-center ${imageUrl ? 'hidden' : ''}`}>
+                        <span className="text-gray-400 text-4xl">📷</span>
+                      </div>
+                      
+                      {/* Expiring badge */}
+                      {expiringSoon && (
+                        <span className="absolute left-2 top-2 rounded-full bg-amber-500/90 px-2 py-0.5 text-xs text-white font-medium">
+                          Sắp hết hạn
+                        </span>
+                      )}
+                    </div>
 
-            <div className="space-y-1 bg-white/90 border border-white rounded-3xl shadow-sm overflow-hidden">
-              {listNews.map((item) => (
-                <NewsListItem
-                  key={item.id_tin}
-                  item={item}
-                  getImageUrl={getImageUrl}
-                  formatDate={formatDate}
-                />
-              ))}
+                    {/* Content */}
+                    <div className="p-3 flex-1 flex flex-col">
+                      <div className="mb-2 flex items-center gap-2 flex-wrap">
+                        <span className={`px-2 py-0.5 text-xs rounded-full border ${getLoaiTinColor(item.loai_tin)}`}>
+                          {item.loai_tin}
+                        </span>
+                        {item.tentruong && (
+                          <span className="text-xs text-gray-500 truncate">• {item.tentruong}</span>
+                        )}
+                      </div>
+
+                      <h3 className="line-clamp-2 text-base font-medium mb-2 flex-1">
+                        {item.tieu_de}
+                      </h3>
+
+                      {item.tom_tat && (
+                        <p className="text-sm text-gray-600 mb-3 line-clamp-2">
+                          {item.tom_tat}
+                        </p>
+                      )}
+
+                      <div className="mt-auto space-y-2">
+                        <div className="flex items-center justify-between text-xs text-gray-500">
+                          <span>{formatDate(item.ngay_dang)}</span>
+                          {item.ngay_het_han && (
+                            <span className="text-orange-600">
+                              Hết hạn: {formatDate(item.ngay_het_han)}
+                            </span>
+                          )}
                         </div>
-          </>
-        )}
+
+                        {item.nguon_bai_viet ? (
+                          <a
+                            href={item.nguon_bai_viet}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="block w-full px-4 py-2 bg-teal-600 text-white text-sm text-center rounded-xl hover:bg-teal-700 transition-colors hover:translate-y-0.5 hover:shadow-md"
+                          >
+                            Xem chi tiết →
+                          </a>
+                        ) : (
+                          <div className="w-full px-4 py-2 bg-gray-100 text-gray-400 text-sm text-center rounded-xl">
+                            Không có link
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
 
             {/* Pagination */}
-        {!loading && totalPages > 1 && (
-          <div className="flex items-center justify-center gap-2 mt-8">
+            {totalPages > 1 && (
+              <div className="flex items-center justify-center gap-2 mb-8">
                 <button
                   onClick={() => handlePageChange(currentPage - 1)}
                   disabled={currentPage === 1}
-              className="px-4 py-2 border border-gray-300 rounded disabled:opacity-50"
+                  className="px-4 py-2 border border-neutral-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                  aria-label="Trang trước"
                 >
                   Trước
                 </button>
-            <span className="text-sm text-gray-600">
+                <span className="px-4 py-2 text-sm text-gray-600">
                   Trang {currentPage} / {totalPages}
                 </span>
                 <button
                   onClick={() => handlePageChange(currentPage + 1)}
                   disabled={currentPage === totalPages}
-              className="px-4 py-2 border border-gray-300 rounded disabled:opacity-50"
+                  className="px-4 py-2 border border-neutral-200 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-gray-50 transition-colors"
+                  aria-label="Trang sau"
                 >
                   Sau
                 </button>
               </div>
+            )}
+          </>
         )}
       </div>
     </div>
   );
 }
-
-const ArticleLink = ({ item, className, children }) => {
-  if (item?.nguon_bai_viet) {
-    return (
-      <a
-        href={item.nguon_bai_viet}
-        target="_blank"
-        rel="noopener noreferrer"
-        className={className}
-      >
-        {children}
-      </a>
-    );
-  }
-  return <div className={className}>{children}</div>;
-};
-
-const NewsCardLarge = ({ item, getImageUrl, formatDate }) => {
-  const imageUrl = getImageUrl(item);
-  const accent = getCategoryAccent(item.loai_tin);
-  return (
-    <ArticleLink
-      item={item}
-      className="block bg-white rounded-3xl shadow-lg hover:shadow-xl transition overflow-hidden group border border-white"
-    >
-      <div className="w-full bg-gray-100 overflow-hidden aspect-[16/9]">
-        {imageUrl ? (
-          <img
-            src={imageUrl}
-            alt={item.tieu_de}
-            className="h-full w-full object-cover group-hover:scale-[1.01] transition-transform"
-            onError={(e) => {
-              e.currentTarget.style.display = "none";
-              const fallback = e.currentTarget.nextElementSibling;
-              if (fallback) fallback.style.display = "flex";
-            }}
-          />
-        ) : null}
-        <div
-          className={`w-full h-full items-center justify-center text-gray-400 text-sm ${
-            imageUrl ? "hidden" : "flex"
-          }`}
-        >
-          Không có ảnh
-        </div>
-      </div>
-      <div className="p-6 space-y-3 bg-gradient-to-br from-white via-white to-[#F7FAFF]">
-        <span
-          className={`inline-flex px-3 py-1 rounded-full text-[11px] font-semibold uppercase tracking-wide ${accent.badgeBg} ${accent.badgeText}`}
-        >
-          {item.loai_tin || "Tin tuyển sinh"}
-        </span>
-        <h2 className="text-2xl font-bold text-gray-900 leading-tight group-hover:text-[#0F8B6E] transition-colors">
-          {item.tieu_de}
-        </h2>
-        <p className="text-sm text-gray-600 line-clamp-3">{getArticleSummary(item)}</p>
-        <span className="text-xs text-gray-500 flex items-center gap-1">
-          <span className="w-1.5 h-1.5 rounded-full bg-[#0FB981]" />
-          {formatDate(item.ngay_dang)}
-        </span>
-      </div>
-    </ArticleLink>
-  );
-};
-
-const NewsCardHighlight = ({ item, getImageUrl, formatDate }) => {
-  const imageUrl = getImageUrl(item);
-  const accent = getCategoryAccent(item.loai_tin);
-  return (
-    <ArticleLink
-      item={item}
-      className="flex gap-4 bg-white rounded-2xl shadow-md hover:shadow-lg transition overflow-hidden group border border-white"
-    >
-      <div className="w-32 rounded overflow-hidden bg-gray-100 flex-shrink-0 aspect-[4/3]">
-        {imageUrl ? (
-          <img
-            src={imageUrl}
-            alt={item.tieu_de}
-            className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform"
-            onError={(e) => {
-              e.currentTarget.style.display = "none";
-              const fallback = e.currentTarget.nextElementSibling;
-              if (fallback) fallback.style.display = "flex";
-            }}
-          />
-        ) : null}
-        <div
-          className={`w-full h-full items-center justify-center text-gray-400 text-xs ${
-            imageUrl ? "hidden" : "flex"
-          }`}
-        >
-          Không có ảnh
-        </div>
-      </div>
-      <div className="py-3 pr-3 space-y-2">
-        <span
-          className={`inline-flex px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase ${accent.badgeBg} ${accent.badgeText}`}
-        >
-          {item.loai_tin || "Tin"}
-        </span>
-        <h3 className="text-base font-semibold text-gray-900 leading-tight line-clamp-2 group-hover:text-[#0F8B6E]">
-          {item.tieu_de}
-        </h3>
-        <p className="text-xs text-gray-500">{getArticleSummary(item)}</p>
-        <p className="text-[11px] text-gray-400">{formatDate(item.ngay_dang)}</p>
-      </div>
-    </ArticleLink>
-  );
-};
-
-const NewsListItem = ({ item, getImageUrl, formatDate }) => {
-  const imageUrl = getImageUrl(item);
-  const accent = getCategoryAccent(item.loai_tin);
-  return (
-    <ArticleLink
-      item={item}
-      className="flex gap-4 p-4 hover:bg-[#F0FFF7] transition-colors border-b border-[#E5F4EC] last:border-b-0"
-    >
-      <div className="w-32 rounded overflow-hidden flex-shrink-0 bg-gray-100 aspect-[4/3]">
-        {imageUrl ? (
-          <img
-            src={imageUrl}
-            alt={item.tieu_de}
-            className="w-full h-full object-cover"
-            onError={(e) => {
-              e.currentTarget.style.display = "none";
-              const fallback = e.currentTarget.nextElementSibling;
-              if (fallback) fallback.style.display = "flex";
-            }}
-          />
-        ) : null}
-        <div
-          className={`w-full h-full items-center justify-center text-gray-400 text-xs ${
-            imageUrl ? "hidden" : "flex"
-          }`}
-        >
-          Không có ảnh
-        </div>
-      </div>
-      <div className="flex-1">
-        <div className="flex items-center gap-2 mb-1">
-          <span
-            className={`px-2 py-0.5 rounded-full text-[10px] font-semibold uppercase ${accent.badgeBg} ${accent.badgeText}`}
-          >
-            {item.loai_tin || "Tin"}
-          </span>
-        </div>
-        <h4 className="text-lg font-semibold text-gray-900 group-hover:text-[#0F8B6E] transition-colors">
-          {item.tieu_de}
-        </h4>
-        <p className="text-sm text-gray-600 mt-1 line-clamp-2">{getArticleSummary(item)}</p>
-        <div className="text-xs text-gray-500 mt-2 flex gap-4">
-          <span>{formatDate(item.ngay_dang)}</span>
-          {item.tentruong && <span>{item.tentruong}</span>}
-        </div>
-      </div>
-    </ArticleLink>
-  );
-};

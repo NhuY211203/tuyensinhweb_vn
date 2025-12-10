@@ -53,11 +53,11 @@ const PaymentModal = ({ isOpen, onClose, bookingData }) => {
   const generateZaloPayQR = async (invoiceId, scheduleId, userId, pointsUsed = 0) => {
     try {
       const response = await apiService.post('/payments/generate-zalopay-qr', {
-        invoiceId: invoiceId,
-        scheduleId: scheduleId,
-        userId: userId,
-        pointsUsed: pointsUsed,
-        discountAmount: pointsUsed * 1000 // Tổng số tiền giảm
+        invoiceId: Number(invoiceId),
+        scheduleId: Number(scheduleId),
+        userId: Number(userId),
+        pointsUsed: Number(pointsUsed) || 0,
+        discountAmount: Number(pointsUsed) * 1000 // Tổng số tiền giảm
       });
       
       console.log('ZaloPay Response:', response);
@@ -152,8 +152,7 @@ const PaymentModal = ({ isOpen, onClose, bookingData }) => {
       const userId = getUserId();
       if (!userId) return;
 
-      const response = await fetch(`http://localhost:8000/api/my-reward-points?user_id=${userId}`);
-      const data = await response.json();
+      const data = await apiService.get('/my-reward-points', { user_id: userId });
 
       if (data.success && data.summary) {
         // Chỉ lấy điểm chưa sử dụng
@@ -262,7 +261,14 @@ const PaymentModal = ({ isOpen, onClose, bookingData }) => {
       await generateZaloPayQR(invoiceId, scheduleId, userId, pointsToUse);
     } catch (error) {
       console.error('Payment error:', error);
-      alert('Có lỗi xảy ra khi tạo thanh toán: ' + (error.message || 'Unknown error'));
+      const apiErr = error.response?.data;
+      let msg = error.message || 'Unknown error';
+      if (apiErr) {
+        const subMsg = apiErr?.error?.sub_return_message || apiErr?.debug?.sub_return_message || apiErr?.error?.return_message || apiErr?.message;
+        const subCode = apiErr?.error?.sub_return_code ?? apiErr?.debug?.sub_return_code ?? apiErr?.error?.return_code;
+        msg = `${subMsg || msg}${subCode !== undefined ? ` (code: ${subCode})` : ''}`;
+      }
+      alert('Có lỗi xảy ra khi tạo thanh toán: ' + msg);
     } finally {
       setIsProcessing(false);
     }

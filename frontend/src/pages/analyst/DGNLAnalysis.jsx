@@ -10,6 +10,7 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import Toast from "../../components/Toast";
+import api from "../../services/api";
 
 export default function DGNLAnalysis() {
   const [loading, setLoading] = useState(false);
@@ -84,11 +85,12 @@ export default function DGNLAnalysis() {
     setLoading(true);
     try {
       const [examsRes, attemptsRes] = await Promise.all([
-        fetch("http://localhost:8000/api/kythi-dgnl/exams"),
-        fetch("http://localhost:8000/api/kythi-dgnl/attempts"),
+        api.getDGNLExams(),
+        api.getDGNLAttempts(),
       ]);
-      const examsJson = await examsRes.json();
-      const attemptsJson = await attemptsRes.json();
+
+      const examsJson = examsRes;
+      const attemptsJson = attemptsRes;
 
       if (!examsJson.success || !attemptsJson.success) {
         showToast("Không thể tải dữ liệu kỳ thi hoặc lượt làm bài ĐGNL", "error");

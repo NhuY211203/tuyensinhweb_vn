@@ -359,13 +359,9 @@ export default function ManagerUsers({
   useEffect(() => {
     async function loadRoles() {
       try {
-        const response = await fetch('/api/vaitro').catch(() => 
-          fetch('http://127.0.0.1:8000/api/vaitro')
-        );
-        if (response.ok) {
-          const rolesData = await response.json();
-          setRoles(Array.isArray(rolesData) ? rolesData : []);
-        }
+        const res = await api.getRoles();
+        const list = Array.isArray(res) ? res : (res?.data || []);
+        setRoles(list);
       } catch (err) {
         console.error('Error loading roles:', err);
       }
@@ -379,49 +375,17 @@ export default function ManagerUsers({
     try {
       setLoading(true);
       setError(null);
-      
-      let response;
-      try {
-        console.log('Trying proxy connection for users...');
-        // Tăng perPage lên 1000 để load tất cả users
-        response = await fetch("/api/users?perPage=1000");
-        console.log('Proxy response status:', response.status);
-      } catch (error) {
-        console.log('Proxy failed, trying direct connection:', error);
-        try {
-          // Tăng perPage lên 1000 để load tất cả users
-          response = await fetch("http://127.0.0.1:8000/api/users?perPage=1000");
-          console.log('Direct connection response status:', response.status);
-        } catch (directError) {
-          console.error('Both connections failed:', directError);
-          throw directError;
-        }
-      }
-      
-      if (response.ok) {
-        const result = await response.json();
-        console.log('Users response:', result);
-        if (result.success) {
-          setData(result.data);
-          setPagination({
-            current_page: result.current_page,
-            last_page: result.last_page,
-            total: result.total
-          });
-        } else {
-          console.log('API returned success=false:', result);
-          setError(result.message || "Không thể tải danh sách người dùng");
-        }
+
+      const result = await api.get('/users', { perPage: 1000 });
+      if (result && result.success) {
+        setData(result.data || []);
+        setPagination({
+          current_page: result.current_page || result.pagination?.current_page || 1,
+          last_page: result.last_page || result.pagination?.last_page || 1,
+          total: result.total || result.pagination?.total || (result.data?.length || 0),
+        });
       } else {
-        console.log('Response not ok, status:', response.status);
-        try {
-          const errorResult = await response.json();
-          console.log('Error response:', errorResult);
-          setError(errorResult.message || "Không thể tải danh sách người dùng");
-        } catch (parseError) {
-          console.log('Parse error:', parseError);
-          setError("Không thể kết nối đến server");
-        }
+        setError(result?.message || "Không thể tải danh sách người dùng");
       }
     } catch (err) {
       console.error("Error loading users:", err);
@@ -466,111 +430,17 @@ export default function ManagerUsers({
     try {
       setSaving(true);
       setMessage(null);
-      
-      let response;
-      try {
-        console.log('Trying proxy connection first...');
-        response = await fetch('/api/users/update-role', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            id: editing.idnguoidung,
-            role: role
-          })
-        });
-        console.log('Proxy response received:', response.status);
-      } catch (error) {
-        console.log('Proxy failed, trying direct connection:', error);
-        try {
-          response = await fetch('http://127.0.0.1:8000/api/users/update-role', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              id: editing.idnguoidung,
-              role: role
-            })
-          });
-          console.log('Direct connection response received:', response.status);
-        } catch (directError) {
-          console.error('Both connections failed:', directError);
-          throw directError;
-        }
-      }
-
-      console.log('Response status:', response.status, 'ok:', response.ok);
-      console.log('Response headers:', response.headers);
-      
-      if (response.ok) {
-        try {
-          const result = await response.json();
-          console.log('Response data:', result);
-          console.log('Result success:', result.success);
-          console.log('Result message:', result.message);
-          
-          if (result.success) {
-            // Cập nhật dữ liệu local
-            setData(prev => prev.map(u => 
-              u.idnguoidung === editing.idnguoidung 
-                ? {...u, vai_tro: {tenvaitro: role}}
-                : u
-            ));
-            setEditing(null);
-            setMessage({ type: 'success', text: 'Cập nhật thành công!' });
-            // Reload trang sau 1.5 giây
-            setTimeout(() => {
-              window.location.reload();
-            }, 1500);
-          } else {
-            console.log('API returned success=false:', result);
-            setMessage({ type: 'success', text: 'Cập nhật thành công!' });
-            // Reload trang sau 1.5 giây
-            setTimeout(() => {
-              window.location.reload();
-            }, 1500);
-          }
-        } catch (jsonError) {
-          console.error('JSON parse error:', jsonError);
-          setMessage({ type: 'success', text: 'Cập nhật thành công!' });
-          // Reload trang sau 1.5 giây
-          setTimeout(() => {
-            window.location.reload();
-          }, 1500);
-        }
+      const result = await api.post('/users/update-role', { id: editing.idnguoidung, role });
+      if (result && result.success) {
+        setData(prev => prev.map(u => u.idnguoidung === editing.idnguoidung ? { ...u, vai_tro: { tenvaitro: role } } : u));
+        setEditing(null);
+        setMessage({ type: 'success', text: 'Cập nhật thành công!' });
       } else {
-        console.log('Response not ok, status:', response.status);
-        // Thử parse response để lấy thông báo lỗi chi tiết
-        try {
-          const errorResult = await response.json();
-          console.log('Error response:', errorResult);
-          setMessage({ type: 'success', text: 'Cập nhật thành công!' });
-          // Reload trang sau 1.5 giây
-          setTimeout(() => {
-            window.location.reload();
-          }, 1500);
-        } catch (parseError) {
-          console.log('Parse error:', parseError);
-          console.log('Response text:', await response.text());
-          setMessage({ type: 'success', text: 'Cập nhật thành công!' });
-          // Reload trang sau 1.5 giây
-          setTimeout(() => {
-            window.location.reload();
-          }, 1500);
-        }
+        setMessage({ type: 'error', text: result?.message || 'Cập nhật quyền thất bại' });
       }
     } catch (error) {
       console.error('Error updating role:', error);
-      console.error('Error type:', typeof error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      setMessage({ type: 'success', text: 'Cập nhật thành công!' });
-      // Reload trang sau 1.5 giây
-      setTimeout(() => {
-        window.location.reload();
-      }, 1500);
+      setMessage({ type: 'error', text: error.message || 'Cập nhật quyền thất bại' });
     } finally {
       setSaving(false);
     }
@@ -624,39 +494,34 @@ export default function ManagerUsers({
         if (editingUser) {
           // Update user
           userData.id = editingUser.idnguoidung;
-          try {
-            responseData = await api.put('/users', userData);
-          } catch (error) {
-            // Fallback to direct fetch
-            const response = await fetch('http://127.0.0.1:8000/api/users', {
-              method: 'PUT',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(userData)
-            });
-            responseData = await response.json();
-            
-            if (!response.ok) {
-              // Response không thành công, nhưng đã parse được JSON
-              throw responseData;
-            }
-          }
+          responseData = await api.updateUser(userData);
         } else {
           // Create user
-          try {
+          // Nếu vai trò là "Tư vấn viên" thì phải tạo qua endpoint /staff/consultants
+          const selectedRole = (roles || []).find(r => r.idvaitro === userData.idvaitro);
+          const roleName = selectedRole?.tenvaitro || "";
+          if (roleName === "Tư vấn viên") {
+            // Map sang payload của tư vấn viên
+            let nganhHocId = null;
+            try {
+              const mg = await api.getMajorGroups();
+              if (mg?.success && Array.isArray(mg.data) && mg.data.length) {
+                nganhHocId = mg.data[0].id || mg.data[0].idnhomnganh || null;
+              }
+            } catch {}
+            const consultantPayload = {
+              name: userData.hoten,
+              email: userData.email,
+              phone: userData.sodienthoai || "",
+              nganhHoc: nganhHocId, // nếu null, backend có thể dùng mặc định hoặc báo lỗi rõ ràng
+              address: userData.diachi || null,
+              birthday: userData.ngaysinh || null,
+              gender: userData.gioitinh || null,
+              status: userData.trangthai === 1 ? "Hoạt động" : "Tạm dừng",
+            };
+            responseData = await api.createConsultant(consultantPayload);
+          } else {
             responseData = await api.post('/users', userData);
-          } catch (error) {
-            // Fallback to direct fetch
-            const response = await fetch('http://127.0.0.1:8000/api/users', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify(userData)
-            });
-            responseData = await response.json();
-            
-            if (!response.ok) {
-              // Response không thành công, nhưng đã parse được JSON
-              throw responseData;
-            }
           }
         }
 
@@ -719,55 +584,12 @@ export default function ManagerUsers({
       if (!user) return;
 
       const newStatus = user.trangthai === 1 ? 0 : 1;
-      
-      let response;
-      try {
-        response = await fetch('/api/users/update-status', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            id: id,
-            status: newStatus
-          })
-        });
-      } catch (error) {
-        console.log('Proxy failed, trying direct connection:', error);
-        response = await fetch('http://127.0.0.1:8000/api/users/update-status', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            id: id,
-            status: newStatus
-          })
-        });
-      }
-
-      if (response.ok) {
-        const result = await response.json();
-        if (result.success) {
-          // Cập nhật dữ liệu local
-          setData(prev => prev.map(u => 
-            u.idnguoidung === id 
-              ? {...u, trangthai: newStatus}
-              : u
-          ));
-          setMessage({ type: 'success', text: 'Cập nhật trạng thái thành công!' });
-        } else {
-          setMessage({ type: 'error', text: result.message || 'Có lỗi xảy ra khi cập nhật trạng thái' });
-        }
+      const result = await api.post('/users/update-status', { id, status: newStatus });
+      if (result && result.success) {
+        setData(prev => prev.map(u => u.idnguoidung === id ? { ...u, trangthai: newStatus } : u));
+        setMessage({ type: 'success', text: 'Cập nhật trạng thái thành công!' });
       } else {
-        // Thử parse response để lấy thông báo lỗi chi tiết
-        try {
-          const errorResult = await response.json();
-          const errorMessage = errorResult.message || 'Có lỗi xảy ra khi cập nhật trạng thái';
-          setMessage({ type: 'error', text: errorMessage });
-        } catch {
-          setMessage({ type: 'error', text: 'Không thể kết nối đến server' });
-        }
+        setMessage({ type: 'error', text: result?.message || 'Có lỗi xảy ra khi cập nhật trạng thái' });
       }
     } catch (error) {
       console.error('Error updating status:', error);

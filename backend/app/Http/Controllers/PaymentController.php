@@ -9,7 +9,6 @@ use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
 use App\Models\ThanhToan;
-use App\Models\DiemBoiDuong;
 
 class PaymentController extends Controller
 {
@@ -25,14 +24,14 @@ class PaymentController extends Controller
                 'scheduleId' => 'required|integer', // id_lichtuvan
                 'userId' => 'required|integer', // id_nguoidung
                 'pointsUsed' => 'nullable|integer|min:0',
-                'discountAmount' => 'nullable|numeric|min:0',
+                'discountAmount' => 'nullable|integer|min:0'
             ]);
 
             $invoiceId = $request->integer('invoiceId');
             $scheduleId = $request->integer('scheduleId');
             $userId = $request->integer('userId');
             $pointsUsed = $request->integer('pointsUsed', 0);
-            $discountAmount = $request->float('discountAmount', 0);
+            $discountAmount = $request->integer('discountAmount', 0);
             
             // Tạo orderId từ schedule ID
             $orderId = 'ORD_' . time() . '_' . $scheduleId;
@@ -47,15 +46,20 @@ class PaymentController extends Controller
             if (!$appId || !$key1 || !$key2) {
                 return response()->json([
                     'success' => false,
-                    'message' => 'ZaloPay chưa được cấu hình. Vui lòng kiểm tra file .env'
+                    'message' => 'ZaloPay chưa được cấu hình. Vui lòng kiểm tra file .env',
+                    'debug' => [
+                        'appId' => $appId ? 'configured' : 'missing',
+                        'key1' => $key1 ? 'configured' : 'missing',
+                        'key2' => $key2 ? 'configured' : 'missing'
+                    ]
                 ], 500);
             }
 
             // Tính toán số tiền
-            $consultationFee = 500000; // Phí tư vấn
-            $serviceFee = 50000; // Phí dịch vụ
-            $totalBeforeDiscount = $consultationFee + $serviceFee; // Tổng trước giảm: 550000
-            $amount = max(0, $totalBeforeDiscount - $discountAmount); // Tổng sau giảm giá
+            $consultationFee = 5000; // Phí tư vấn
+            $serviceFee = 5000; // Phí dịch vụ
+            $subtotal = $consultationFee + $serviceFee; // Tổng: 550000
+            $amount = max(0, $subtotal - $discountAmount); // Tổng sau giảm giá
             
             // Tạo app_trans_id theo format ZaloPay: YYMMDD_xxxxxx
             $date = date('ymd');
@@ -68,78 +72,96 @@ class PaymentController extends Controller
                 'id_nguoidung' => $userId,
                 'phuongthuc' => 'ZaloPayOA',
                 'ma_phieu' => $orderId,
-                'so_tien' => $totalBeforeDiscount, // Tổng tiền gốc
+                'so_tien' => $amount,
                 'don_vi_tien' => 'VND',
-                'so_tien_giam' => $discountAmount, // Số tiền giảm từ điểm
+                'so_tien_giam' => $discountAmount,
                 'phi_giao_dich' => $serviceFee,
                 'trang_thai' => 'KhoiTao',
                 'ma_giao_dich_app' => $appTransId,
                 'du_lieu_yeu_cau' => json_encode([
                     'pointsUsed' => $pointsUsed,
-                    'discountAmount' => $discountAmount
+                    'discountAmount' => $discountAmount,
+                    'subtotal' => $subtotal
                 ])
             ]);
             
             Log::info('Created ThanhToan record', [
                 'id_thanhtoan' => $thanhToan->id_thanhtoan,
                 'ma_phieu' => $orderId,
-                'ma_giao_dich_app' => $appTransId
+                'ma_giao_dich_app' => $appTransId,
+                'amount' => $amount,
+                'discount' => $discountAmount
             ]);
             
             // Tạo embed_data (phải là JSON string)
             $embedDataObj = [
                 'orderId' => $orderId,
                 'invoiceId' => $invoiceId,
-                'id_thanhtoan' => $thanhToan->id_thanhtoan
+                'id_thanhtoan' => $thanhToan->id_thanhtoan,
+                'userId' => $userId,
+                'pointsUsed' => $pointsUsed
             ];
-            $embedData = json_encode($embedDataObj);
+            $embedData = json_encode($embedDataObj, JSON_UNESCAPED_UNICODE);
             
             // Tạo item (phải là JSON string array)
             $itemObj = [
                 [
-                    'item_name' => 'Phí tư vấn tư vấn tuyển sinh' . ($discountAmount > 0 ? ' (Đã giảm ' . number_format($discountAmount) . ' VND)' : ''),
+                    'item_name' => 'Phí tư vấn tuyển sinh',
                     'item_quantity' => 1,
-                    'item_price' => $amount // Số tiền sau khi giảm giá
+                    'item_price' => $amount
                 ]
             ];
-            $item = json_encode($itemObj);
+            $item = json_encode($itemObj, JSON_UNESCAPED_UNICODE);
             
             // Tạo app_time (timestamp milliseconds)
             $appTime = round(microtime(true) * 1000);
             
-            // app_user: Nếu có ZaloPay User ID thì dùng, nếu không thì dùng app_id
-            // ZaloPay cho phép dùng app_id nếu không có user ID cụ thể
-            $appUser = (string) $appId; // Dùng app_id theo ZaloPay docs
+            // app_user: Dùng user ID từ request
+            $appUser = (string) $userId;
             
             // Tạo data string để ký MAC theo format: app_id|app_trans_id|app_user|amount|app_time|embed_data|item
-            $dataString = "{$appId}|{$appTransId}|{$appUser}|{$amount}|{$appTime}|{$embedData}|{$item}";
+            // QUAN TRỌNG: Tất cả giá trị phải là string và không có khoảng trắng thừa
+            $dataString = implode('|', [
+                (string) $appId,
+                (string) $appTransId,
+                (string) $appUser,
+                (string) $amount,
+                (string) $appTime,
+                (string) $embedData,
+                (string) $item
+            ]);
             
             // Ký MAC bằng HMAC-SHA256 với key1
             $mac = hash_hmac('sha256', $dataString, $key1);
             
             // Gọi API ZaloPay với format đúng
+            // QUAN TRỌNG: Tất cả giá trị phải là string
             $requestData = [
                 'app_id' => (string) $appId,
-                'app_user' => $appUser,
+                'app_user' => (string) $appUser,
                 'app_time' => (string) $appTime,
                 'amount' => (string) $amount,
-                'app_trans_id' => $appTransId,
-                'embed_data' => $embedData,
-                'item' => $item,
-                'description' => 'Thanh toán phí tư vấn tuyển sinh',
+                'app_trans_id' => (string) $appTransId,
+                'embed_data' => (string) $embedData,
+                'item' => (string) $item,
+                'description' => 'Consultation fee payment',
                 'bank_code' => 'zalopayapp',
-                'callback_url' => $callbackUrl,
-                'mac' => $mac
+                'callback_url' => (string) $callbackUrl,
+                'mac' => (string) $mac
             ];
             
-            Log::info('ZaloPay Request', [
+            Log::info('ZaloPay Request Details', [
                 'endpoint' => $endpoint,
-                'request_data' => $requestData,
-                'data_string' => $dataString,
-                'mac' => $mac,
                 'app_id' => $appId,
+                'app_trans_id' => $appTransId,
                 'app_user' => $appUser,
-                'app_trans_id' => $appTransId
+                'amount' => $amount,
+                'app_time' => $appTime,
+                'embed_data' => $embedData,
+                'item' => $item,
+                'data_string_for_mac' => $dataString,
+                'calculated_mac' => $mac,
+                'callback_url' => $callbackUrl
             ]);
             
             // Gửi request với Content-Type: application/x-www-form-urlencoded
@@ -157,12 +179,15 @@ class PaymentController extends Controller
                 Log::info('ZaloPay Response', [
                     'response' => $result,
                     'return_code' => $return_code,
-                    'return_message' => $return_message
+                    'return_message' => $return_message,
+                    'sub_return_code' => $result['sub_return_code'] ?? null,
+                    'sub_return_message' => $result['sub_return_message'] ?? null
                 ]);
             } else {
                 Log::error('ZaloPay HTTP Error', [
                     'status' => $response->status(),
-                    'body' => $response->body()
+                    'body' => $response->body(),
+                    'headers' => $response->headers()
                 ]);
                 
                 return response()->json([
@@ -177,23 +202,26 @@ class PaymentController extends Controller
             
             // Cập nhật response từ ZaloPay vào database
             $thanhToan->update([
-                'du_lieu_phan_hoi' => json_encode($result)
+                'du_lieu_phan_hoi' => json_encode($result, JSON_UNESCAPED_UNICODE)
             ]);
             
             if ($return_code !== 1) {
-                // Cập nhật trạng thái thất bại (sử dụng giá trị enum hợp lệ)
+                // Cập nhật trạng thái thất bại
                 $thanhToan->update([
-                    'trang_thai' => 'KhoiTao', // Giữ nguyên hoặc dùng giá trị enum hợp lệ
+                    'trang_thai' => 'KhoiTao',
                     'ly_do_that_bai' => $return_message ?: 'Giao dịch thất bại từ ZaloPay'
                 ]);
                 
                 Log::error('ZaloPay API Error', [
                     'return_code' => $return_code,
                     'return_message' => $return_message,
+                    'sub_return_code' => $result['sub_return_code'] ?? null,
+                    'sub_return_message' => $result['sub_return_message'] ?? null,
                     'full_response' => $result,
                     'orderId' => $orderId,
                     'app_trans_id' => $appTransId,
-                    'id_thanhtoan' => $thanhToan->id_thanhtoan
+                    'id_thanhtoan' => $thanhToan->id_thanhtoan,
+                    'request_data' => $requestData
                 ]);
                 
                 return response()->json([
@@ -202,7 +230,9 @@ class PaymentController extends Controller
                     'error' => $result,
                     'debug' => [
                         'return_code' => $return_code,
-                        'return_message' => $return_message
+                        'return_message' => $return_message,
+                        'sub_return_code' => $result['sub_return_code'] ?? null,
+                        'sub_return_message' => $result['sub_return_message'] ?? null
                     ]
                 ], 500);
             }
@@ -212,7 +242,7 @@ class PaymentController extends Controller
             
             if (!$orderUrl) {
                 $thanhToan->update([
-                    'trang_thai' => 'KhoiTao', // Giữ nguyên hoặc dùng giá trị enum hợp lệ
+                    'trang_thai' => 'KhoiTao',
                     'ly_do_that_bai' => 'Không nhận được order_url từ ZaloPay'
                 ]);
                 
@@ -266,7 +296,8 @@ class PaymentController extends Controller
             Log::info('ZaloPay QR Created Successfully', [
                 'id_thanhtoan' => $thanhToan->id_thanhtoan,
                 'ma_phieu' => $orderId,
-                'order_url' => $orderUrl
+                'order_url' => $orderUrl,
+                'amount' => $amount
             ]);
             
             // Trả về response với QR code data
@@ -471,57 +502,11 @@ class PaymentController extends Controller
                 }
                 
                 // Cập nhật trạng thái thanh toán thành công
-                DB::beginTransaction();
-                try {
-                    $thanhToan->update([
-                        'trang_thai' => $paidStatus,
-                        'ma_giao_dich_zp' => $transactionId,
-                        'thoi_gian_thanh_toan' => now()
-                    ]);
-                    
-                    // Xử lý sử dụng điểm nếu có
-                    $duLieuYeuCau = json_decode($thanhToan->du_lieu_yeu_cau ?? '{}', true);
-                    $pointsUsed = $duLieuYeuCau['pointsUsed'] ?? 0;
-                    
-                    if ($pointsUsed > 0) {
-                        // Lấy các điểm bồi đắp chưa sử dụng của người dùng, sắp xếp theo ngày tạo
-                        $pointsToUse = DiemBoiDuong::where('idnguoidung', $thanhToan->id_nguoidung)
-                            ->where('trang_thai', 1) // Chưa sử dụng
-                            ->orderBy('ngay_tao', 'asc') // Sử dụng điểm cũ trước
-                            ->limit($pointsUsed)
-                            ->get();
-                        
-                        $totalPointsUsed = 0;
-                        foreach ($pointsToUse as $point) {
-                            // Đánh dấu điểm đã sử dụng
-                            $point->update([
-                                'trang_thai' => 2, // Đã sử dụng
-                                'ngay_su_dung' => now()
-                            ]);
-                            $totalPointsUsed++;
-                            
-                            // Nếu đã đủ số điểm cần dùng, dừng lại
-                            if ($totalPointsUsed >= $pointsUsed) {
-                                break;
-                            }
-                        }
-                        
-                        Log::info('Đã sử dụng điểm bồi đắp cho thanh toán', [
-                            'id_thanhtoan' => $thanhToan->id_thanhtoan,
-                            'points_used' => $totalPointsUsed,
-                            'user_id' => $thanhToan->id_nguoidung
-                        ]);
-                    }
-                    
-                    DB::commit();
-                } catch (\Exception $e) {
-                    DB::rollBack();
-                    Log::error('Lỗi khi xử lý sử dụng điểm:', [
-                        'error' => $e->getMessage(),
-                        'id_thanhtoan' => $thanhToan->id_thanhtoan
-                    ]);
-                    // Vẫn tiếp tục, không throw exception để không ảnh hưởng đến callback
-                }
+                $thanhToan->update([
+                    'trang_thai' => $paidStatus,
+                    'ma_giao_dich_zp' => $transactionId,
+                    'thoi_gian_thanh_toan' => now()
+                ]);
                 
                 Log::info('ZaloPay Payment Success - Updated Database', [
                     'id_thanhtoan' => $thanhToan->id_thanhtoan,
