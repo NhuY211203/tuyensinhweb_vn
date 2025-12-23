@@ -1,0 +1,27 @@
+# Dependencies
+node_modules/
+vendor/
+
+# Environment files
+.env
+.env.local
+.env.production
+
+# Storage and cache
+backend/storage/logs/
+backend/storage/framework/sessions/
+backend/storage/framework/views/
+backend/storage/framework/cache/
+backend/bootstrap/cache/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Build files
+dist/
+build/
